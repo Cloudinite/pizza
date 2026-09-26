@@ -1,0 +1,279 @@
+/* Pizza Slice Pezinok – public site behaviour.
+   Cart lives in the "ps_cart" cookie ("id:qty:t1.t2|id:qty") so PHP can render it server-side
+   (no layout shift) and everything also works without JavaScript. The server re-prices
+   every order, prices here are only for display. */
+(function () {
+  'use strict';
+
+  var MAX_LINES = 30;
+  var dataEl = document.getElementById('ps-data');
+  var DATA = dataEl ? JSON.parse(dataEl.textContent) : null;
+
+  /* ---------- helpers ---------- */
+  function $(sel, root) { return (root || document).querySelector(sel); }
+  function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
+  function money(c) { return (c / 100).toFixed(2).replace('.', ',') + ' €'; }
+  function plural(n, one, few, many) { return n === 1 ? one : (n >= 2 && n <= 4 ? few : many); }
+
+  /* ---------- cart cookie ---------- */
+  function readCart() {
+    var m = document.cookie.match(/(?:^|;\s*)ps_cart=([^;]*)/);
+    if (!m) return [];
+    var lines = [];
+    decodeURIComponent(m[1]).split('|').forEach(function (chunk) {
+      var p = chunk.match(/^(\d{1,9}):(\d{1,2})(?::([\d.]*))?$/);
+      if (!p || +p[2] < 1) return;
+      var tops = (p[3] || '').split('.').filter(Boolean).map(Number).sort(function (a, b) { return a - b; });
+      lines.push({ id: +p[1], qty: +p[2], tops: tops });
+    });
+    return lines.slice(0, MAX_LINES);
+  }
+  function writeCart(lines) {
+    var v = lines.map(function (l) { return l.id + ':' + l.qty + (l.tops.length ? ':' + l.tops.join('.') : ''); }).join('|');
+    var secure = location.protocol === 'https:' ? '; Secure' : '';
+    document.cookie = 'ps_cart=' + v + '; Path=/; SameSite=Lax' + secure + (v ? '; Max-Age=172800' : '; Max-Age=0');
+    // checkout form carries the cart the customer is looking at; the server rejects a mismatch
+    $$('input[name="cart"]').forEach(function (i) { i.value = v; });
+    refreshCartUI(lines);
+  }
+  function keyOf(l) { return l.id + ':' + l.tops.join('.'); }
+  function maxQty() { return DATA ? DATA.maxQty : 20; }
+  function count(lines) { return lines.reduce(function (n, l) { return n + l.qty; }, 0); }
+  function unitPrice(l) {
+    if (!DATA || !DATA.items[l.id]) return 0;
+    return l.tops.reduce(function (s, t) { return s + (DATA.toppings[t] ? DATA.toppings[t].p : 0); }, DATA.items[l.id].p);
+  }
+  function subtotal(lines) { return lines.reduce(function (s, l) { return s + unitPrice(l) * l.qty; }, 0); }
+
+  function addLine(id, qty, tops) {
+    var lines = readCart();
+    tops = (tops || []).slice().sort(function (a, b) { return a - b; });
+    var k = id + ':' + tops.join('.');
+    var found = lines.filter(function (l) { return keyOf(l) === k; })[0];
+    if (found) found.qty = Math.min(maxQty(), found.qty + qty);
+    else if (lines.length < MAX_LINES) lines.push({ id: id, qty: Math.min(maxQty(), qty), tops: tops });
+    else { toast('Košík je plný'); return lines; }
+    writeCart(lines);
+    return lines;
+  }
+  function changeLine(key, op) {
+    var lines = readCart();
+    lines = lines.filter(function (l) {
+      if (keyOf(l) !== key) return true;
+      if (op === 'inc') l.qty = Math.min(maxQty(), l.qty + 1);
+      else if (op === 'dec' && l.qty > 1) l.qty -= 1;
+      else return false;
+      return true;
+    });
+    writeCart(lines);
+    return lines;
+  }
+
+  /* ---------- shared UI ---------- */
+  function refreshCartUI(lines) {
+    var n = count(lines);
+    $$('[data-cart-count]').forEach(function (b) { b.textContent = n; b.hidden = n === 0; });
+    $$('[data-cart-link]').forEach(function (a) { a.setAttribute('aria-label', 'Košík – ' + n + ' ks'); });
+    var total = $('[data-cart-total]');
+    if (total && DATA) {
+      total.textContent = money(subtotal(lines));
+      $('[data-cart-items]').textContent = n + ' ' + plural(n, 'položka', 'položky', 'položiek') + ' v košíku';
+      var go = $('[data-cart-go]');
+      go.classList.toggle('is-disabled', n === 0);
+      if (n === 0) go.setAttribute('aria-disabled', 'true'); else go.removeAttribute('aria-disabled');
+    }
+  }
+
+  var toastTimer;
+  function toast(msg) {
+    var t = $('[data-toast]');
+    if (!t) return;
+    t.textContent = msg;
+    t.classList.add('is-on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove('is-on'); }, 1800);
+  }
+
+  /* ---------- menu page ---------- */
+  function plainQty(id) {
+    var l = readCart().filter(function (x) { return x.id === id && x.tops.length === 0; })[0];
+    return l ? l.qty : 0;
+  }
+  function syncStepper(form) {
+    var id = +form.getAttribute('data-id');
+    var q = plainQty(id);
+    $('[data-add-plain]', form).hidden = q > 0;
+    $('[data-stepper]', form).hidden = q === 0;
+    $('[data-qty-out]', form).textContent = q;
+  }
+
+  function initMenu() {
+    if (!DATA) return;
+    var dlg = $('#topdlg');
+    var current = null;
+    var qty = 1;
+
+    function dlgTotal() {
+      var tops = $$('input[name="t"]:checked', dlg).map(function (i) { return +i.value; });
+      var unit = unitPrice({ id: current, tops: tops });
+      $('[data-dlg-total]', dlg).textContent = money(unit * qty);
+      $('[data-dlg-qty]', dlg).textContent = qty;
+      var full = tops.length >= DATA.maxTop;
+      $$('input[name="t"]', dlg).forEach(function (i) { i.disabled = full && !i.checked; });
+    }
+
+    function openDialog(id) {
+      current = id;
+      qty = 1;
+      $('[data-dlg-name]', dlg).textContent = DATA.items[id].n;
+      $('[data-dlg-price]', dlg).textContent = money(DATA.items[id].p);
+      $$('input[name="t"]', dlg).forEach(function (i) { i.checked = false; i.disabled = false; });
+      dlgTotal();
+      if (typeof dlg.showModal === 'function') dlg.showModal(); else addLine(id, 1, []);
+    }
+
+    if (dlg) {
+      dlg.addEventListener('change', dlgTotal);
+      $('[data-dlg-inc]', dlg).addEventListener('click', function () { if (qty < maxQty()) { qty++; dlgTotal(); } });
+      $('[data-dlg-dec]', dlg).addEventListener('click', function () { if (qty > 1) { qty--; dlgTotal(); } });
+      // add on submit (before the sheet closes), so the cart is saved before anything else can happen
+      $('[data-dlg-form]', dlg).addEventListener('submit', function (e) {
+        var btn = e.submitter || document.activeElement;
+        if (!btn || btn.value !== 'add' || !current) return;
+        var tops = $$('input[name="t"]:checked', dlg).map(function (i) { return +i.value; });
+        addLine(current, qty, tops);
+        toast('Pridané do košíka: ' + qty + '× ' + DATA.items[current].n);
+      });
+      // tap on the dimmed backdrop closes the sheet
+      dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close('cancel'); });
+    }
+
+    $$('form[data-add]').forEach(function (f) {
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var id = +f.getAttribute('data-id');
+        if (DATA.items[id] && DATA.items[id].t && Object.keys(DATA.toppings).length && dlg) openDialog(id);
+        else { addLine(id, 1, []); toast('Pridané do košíka'); }
+      });
+    });
+
+    $$('form[data-qty]').forEach(function (f) {
+      var id = +f.getAttribute('data-id');
+      f.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var btn = e.submitter || document.activeElement;
+        var op = btn && btn.value ? btn.value.split('|')[0] : 'add';
+        if (op === 'add') addLine(id, 1, []);
+        else changeLine(id + ':', op);
+        syncStepper(f);
+        // keep keyboard focus inside the control when the button swaps
+        var target = op === 'add' || plainQty(id) > 0 ? $('[data-inc]', f) : $('[data-add-plain]', f);
+        if (btn && btn === document.activeElement && target) target.focus({ preventScroll: true });
+      });
+    });
+
+    // cookie may have changed in another tab / via back-forward cache
+    window.addEventListener('pageshow', function () {
+      $$('form[data-qty]').forEach(syncStepper);
+      refreshCartUI(readCart());
+    });
+  }
+
+  /* ---------- checkout ---------- */
+  function initCheckout() {
+    var co = $('[data-checkout]');
+    if (!co || !DATA) return;
+    var fee = +co.getAttribute('data-fee') || 0;
+
+    function totals() {
+      var lines = readCart();
+      var sub = subtotal(lines);
+      $$('[data-subtotal]').forEach(function (el) { el.textContent = money(sub); });
+      $$('[data-total-pickup]').forEach(function (el) { el.textContent = money(sub); });
+      $$('[data-total-delivery]').forEach(function (el) { el.textContent = money(sub + fee); });
+      return lines;
+    }
+
+    var cartForm = $('[data-cartform]');
+    cartForm.addEventListener('submit', function (e) {
+      var btn = e.submitter || document.activeElement;
+      if (!btn || !btn.value) return;
+      e.preventDefault();
+      var parts = btn.value.split('|');
+      var lines = changeLine(parts[1], parts[0]);
+      if (!lines.length) { location.reload(); return; }
+      var li = cartForm.querySelector('[data-line="' + parts[1] + '"]');
+      var line = lines.filter(function (l) { return keyOf(l) === parts[1]; })[0];
+      if (!line) {
+        var next = li.nextElementSibling || li.previousElementSibling;
+        li.remove();
+        if (next) { var b = next.querySelector('.line-del'); if (b) b.focus({ preventScroll: true }); }
+      } else {
+        $('[data-line-qty]', li).textContent = line.qty;
+        $('[data-line-total]', li).textContent = money(unitPrice(line) * line.qty);
+      }
+      totals();
+    });
+
+    $$('input[name="fulfillment"]').forEach(function (r) {
+      r.addEventListener('change', function () { co.classList.toggle('is-delivery', r.value === 'delivery' && r.checked); });
+    });
+
+    var orderForm = $('[data-orderform]');
+    if (orderForm) {
+      orderForm.addEventListener('submit', function (e) {
+        var btn = $('[data-submit]', orderForm);
+        if (btn.getAttribute('aria-busy') === 'true') { e.preventDefault(); return; }
+        btn.setAttribute('aria-busy', 'true');
+        // disabled look without changing size; re-enabled if the page is restored from cache
+        btn.classList.add('is-disabled');
+      });
+      window.addEventListener('pageshow', function () {
+        var btn = $('[data-submit]', orderForm);
+        btn.removeAttribute('aria-busy');
+        btn.classList.remove('is-disabled');
+      });
+    }
+  }
+
+  /* ---------- order status (confirmation page) ---------- */
+  function initOrderStatus() {
+    var box = $('[data-order]');
+    if (!box) return;
+    var code = box.getAttribute('data-code');
+    var token = box.getAttribute('data-token');
+    var status = box.getAttribute('data-status');
+    var delay = 15000;
+
+    function render(st, text) {
+      status = st;
+      box.setAttribute('data-status', st);
+      $('[data-status-text]', box).textContent = text;
+      var prog = $('[data-progress]', box);
+      var steps = $$('li', prog);
+      var idx = steps.map(function (li) { return li.getAttribute('data-step'); }).indexOf(st);
+      prog.classList.toggle('is-cancelled', st === 'cancelled');
+      steps.forEach(function (li, i) {
+        li.className = st === 'cancelled' || idx < 0 ? '' : (i < idx || st === 'completed' ? 'is-done' : (i === idx ? 'is-current' : ''));
+      });
+    }
+    function poll() {
+      if (status === 'completed' || status === 'cancelled') return;
+      if (document.hidden) { setTimeout(poll, delay); return; }
+      fetch('/api/status.php?code=' + encodeURIComponent(code) + '&k=' + encodeURIComponent(token), { cache: 'no-store', credentials: 'same-origin' })
+        .then(function (r) {
+          if (r.status === 410) { location.reload(); throw new Error('expired'); }
+          return r.ok ? r.json() : null;
+        })
+        .then(function (d) { if (d && d.status && d.status !== status) render(d.status, d.text); })
+        .catch(function () {})
+        .then(function () { setTimeout(poll, delay); });
+    }
+    setTimeout(poll, delay);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) delay = 15000; });
+  }
+
+  initMenu();
+  initCheckout();
+  initOrderStatus();
+})();

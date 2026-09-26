@@ -1,0 +1,69 @@
+# Pizza Slice Pezinok – Apache configuration (WebSupport shared hosting)
+
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+AddDefaultCharset utf-8
+
+<IfModule mod_mime.c>
+  AddType application/manifest+json .webmanifest
+  AddType font/woff2 .woff2
+  AddType image/webp .webp
+</IfModule>
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+
+  # Always HTTPS (WebSupport may terminate TLS on a proxy, so also check X-Forwarded-Proto).
+  RewriteCond %{HTTPS} off
+  RewriteCond %{HTTP:X-Forwarded-Proto} !https
+  RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)(:\d+)?$
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+
+  # Internal code, config and SQL are never served.
+  RewriteRule ^app(/|$) - [F,L]
+
+  # One canonical URL per page: /menu.php → /menu
+  RewriteCond %{THE_REQUEST} \s/(menu|kosik|cookies|ochrana-osobnych-udajov)\.php[\s?] [NC]
+  RewriteRule ^ /%1 [R=301,L]
+
+  # Clean URLs
+  RewriteRule ^menu/?$ menu.php [L,QSA]
+  RewriteRule ^kosik/?$ kosik.php [L,QSA]
+  RewriteRule ^objednavka/([A-Za-z0-9]{6})/?$ objednavka.php?code=$1 [L,QSA]
+  RewriteRule ^ochrana-osobnych-udajov/?$ ochrana-osobnych-udajov.php [L,QSA]
+  RewriteRule ^cookies/?$ cookies.php [L,QSA]
+  RewriteRule ^sitemap\.xml$ sitemap.php [L]
+  RewriteRule ^robots\.txt$ robots.php [L]
+</IfModule>
+
+ErrorDocument 403 /404.php
+ErrorDocument 404 /404.php
+
+# Dotfiles, SQL dumps, backups and logs are never served.
+<FilesMatch "(^\.|\.(sql|md|lock|log|ini|sh|bak|dist|example)$)">
+  Require all denied
+</FilesMatch>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/css text/plain text/xml application/xml text/javascript application/javascript application/json application/manifest+json image/svg+xml
+</IfModule>
+
+<IfModule mod_expires.c>
+  ExpiresActive On
+  ExpiresByType text/css "access plus 1 year"
+  ExpiresByType application/javascript "access plus 1 year"
+  ExpiresByType text/javascript "access plus 1 year"
+  ExpiresByType font/woff2 "access plus 1 year"
+  ExpiresByType image/webp "access plus 1 year"
+  ExpiresByType image/png "access plus 1 month"
+  ExpiresByType image/jpeg "access plus 1 month"
+  ExpiresByType image/x-icon "access plus 1 month"
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Versioned assets (?v=…) and uploaded images never change → cache forever.
+  <FilesMatch "\.(css|js|woff2|webp)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  Header always set X-Content-Type-Options "nosniff"
+</IfModule>
