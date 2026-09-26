@@ -85,11 +85,20 @@ function order_validate(array $priced, array $state): array
     return [$d, $errors];
 }
 
-/** Inserts the order in a transaction. @return array{code:string, token:string, daily_no:int} */
-function order_create(array $priced, array $d): array
+/**
+ * Inserts the order in a transaction (and uses up the coupon, if one applies).
+ * @return array{code:string, token:string, daily_no:int}
+ * @throws CouponException when the coupon ran out in the meantime
+ */
+function order_create(array $priced, array $d, ?array $coupon = null): array
 {
     $pdo = db();
     $delivery = $d['fulfillment'] === 'delivery' ? setting_int('delivery_fee_cents') : 0;
+    $discount = coupon_discount($coupon, $priced['subtotal'], $d['fulfillment'], $delivery);
+    if ($discount <= 0) {
+        $coupon = null; // not applicable to this order (e.g. below minimum) → not recorded, not used up
+    }
+    $total = max(0, $priced['subtotal'] - $discount + $delivery);
     $customer = encrypt_str(json_encode([
         'name' => $d['name'], 'phone' => $d['phone'], 'email' => $d['email'],
         'address' => $d['address'], 'note' => $d['note'],
@@ -112,14 +121,27 @@ function order_create(array $priced, array $d): array
 
             $pdo->prepare(
                 'INSERT INTO orders (code, view_token_hash, order_date, daily_no, status, fulfillment, requested_time,
-                    payment_method, customer_enc, item_count, subtotal_cents, delivery_cents, total_cents, created_at, updated_at)
-                 VALUES (?, ?, ?, ?, \'new\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+                    payment_method, customer_enc, item_count, subtotal_cents, delivery_cents, coupon_code, discount_cents,
+                    total_cents, created_at, updated_at)
+                 VALUES (?, ?, ?, ?, \'new\', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
             )->execute([
                 $code, hash('sha256', $token), $today, $dailyNo, $d['fulfillment'],
                 $d['time'] === 'asap' ? null : $d['time'], $d['payment'], $customer,
-                $priced['count'], $priced['subtotal'], $delivery, $priced['subtotal'] + $delivery, $now, $now,
+                $priced['count'], $priced['subtotal'], $delivery, $coupon['code'] ?? null, $discount, $total, $now, $now,
             ]);
             $orderId = (int) $pdo->lastInsertId();
+            if ($coupon) {
+                // atomic: never exceeds max_uses even if two orders arrive at the same moment
+                $use = $pdo->prepare('UPDATE coupons SET used_count = used_count + 1
+                    WHERE id = ? AND is_active = 1 AND (max_uses IS NULL OR used_count < max_uses)');
+                $use->execute([(int) $coupon['id']]);
+                if ($use->rowCount() !== 1) {
+                    $pdo->rollBack();
+                    throw new CouponException('Tento zľavový kód bol medzičasom vyčerpaný.');
+                }
+                $pdo->prepare('INSERT INTO coupon_uses (coupon_id, phone_hash, order_id, created_at) VALUES (?, ?, ?, ?)')
+                    ->execute([(int) $coupon['id'], coupon_phone_hash($d['phone']), $orderId, $now]);
+            }
             $ins = $pdo->prepare(
                 'INSERT INTO order_items (order_id, item_id, name, toppings, unit_cents, qty, line_cents) VALUES (?, ?, ?, ?, ?, ?, ?)'
             );
@@ -214,6 +236,8 @@ function orders_admin_list(string $view): array
             'payment' => PAYMENT_METHODS[$o['payment_method']] ?? $o['payment_method'],
             'total' => (int) $o['total_cents'],
             'delivery' => (int) $o['delivery_cents'],
+            'coupon' => $o['coupon_code'] ?? null,
+            'discount' => (int) ($o['discount_cents'] ?? 0),
             'created' => $o['created_at'],
             'customer' => [
                 'name' => $c['name'] ?? '(anonymizované)',
@@ -256,6 +280,7 @@ function orders_cleanup(): void
     $pdo->prepare('UPDATE orders SET customer_enc = NULL, anonymized_at = ? WHERE customer_enc IS NOT NULL AND created_at < ?')
         ->execute([now_str(), date('Y-m-d H:i:s', time() - $days * 86400)]);
     $pdo->prepare('DELETE FROM admin_sessions WHERE expires_at < ?')->execute([now_str()]);
+    $pdo->prepare('DELETE FROM coupon_uses WHERE created_at < ?')->execute([date('Y-m-d H:i:s', time() - $days * 86400)]);
     $pdo->prepare('DELETE FROM rate_limits WHERE created_at < ?')->execute([date('Y-m-d H:i:s', time() - 86400)]);
 }
 

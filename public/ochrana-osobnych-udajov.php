@@ -35,6 +35,7 @@ page_start([
     <ul>
       <li><b>Pri objednávke:</b> meno, telefónne číslo, e-mail (nepovinný), adresa doručenia (len pri donáške), poznámka k objednávke, obsah objednávky, zvolený čas a spôsob platby.</li>
       <li><b>Technické údaje:</b> pseudonymizovaný (hashovaný) identifikátor IP adresy na ochranu pred zneužitím formulárov. Samotnú IP adresu v databáze neukladáme.</li>
+      <li><b>Pri zľavovom kóde:</b> pseudonymizovaný (hashovaný) odtlačok telefónneho čísla, aby sa kód určený „raz na zákazníka“ nedal použiť opakovane. Z odtlačku sa číslo nedá spätne zistiť.</li>
     </ul>
     <p>Na webe nepoužívame analytické ani reklamné nástroje a nevytvárame profily návštevníkov.</p>
 
@@ -45,7 +46,7 @@ page_start([
     </ul>
 
     <h2>4. Ako dlho údaje uchovávame</h2>
-    <p>Kontaktné údaje z objednávky uchovávame <?= $days ?> dní od jej vytvorenia, potom ich systém automaticky vymaže a v evidencii ostane len anonymný obsah objednávky (položky a suma). Pseudonymizované technické záznamy sa mažú do 24 hodín.</p>
+    <p>Kontaktné údaje z objednávky uchovávame <?= $days ?> dní od jej vytvorenia, potom ich systém automaticky vymaže a v evidencii ostane len anonymný obsah objednávky (položky a suma). Pseudonymizované technické záznamy sa mažú do 24 hodín, odtlačky telefónnych čísel pri zľavových kódoch po <?= $days ?> dňoch.</p>
 
     <h2>5. Kto má k údajom prístup</h2>
     <p>K údajom má prístup iba personál prevádzky cez zabezpečenú administráciu. Údaje sú uložené na serveroch poskytovateľa webhostingu WebSupport s.r.o. (Bratislava, Slovensko), ktorý ich spracúva ako sprostredkovateľ. Údaje neposkytujeme tretím stranám na marketingové účely a neprenášame ich mimo Európskej únie.</p>

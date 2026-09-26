@@ -108,6 +108,7 @@ if (is_post()) {
         try {
             $pdo = db();
             db_run_sql_file($pdo, PS_APPDIR . '/sql/schema.sql');
+            db_migrate($pdo, 1);
             if ((int) $pdo->query('SELECT COUNT(*) FROM categories')->fetchColumn() === 0) {
                 db_run_sql_file($pdo, PS_APPDIR . '/sql/seed.sql');
             }

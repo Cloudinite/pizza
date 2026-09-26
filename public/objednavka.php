@@ -87,6 +87,9 @@ page_start([
       <?php endforeach; ?>
     </ul>
     <dl class="sum">
+      <?php if ((int) ($order['discount_cents'] ?? 0) > 0): ?>
+      <div class="sum-discount"><dt>Zľava <span class="coupon-tag"><?= e((string) $order['coupon_code']) ?></span></dt><dd>−<?= e(money((int) $order['discount_cents'])) ?></dd></div>
+      <?php endif; ?>
       <?php if ((int) $order['delivery_cents']): ?>
       <div><dt>Donáška</dt><dd><?= e(money((int) $order['delivery_cents'])) ?></dd></div>
       <?php endif; ?>

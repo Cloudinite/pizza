@@ -151,6 +151,33 @@
     });
   });
 
+  /* ---------- coupon form: value field follows the type, random code generator ---------- */
+  var typeSel = $('[data-coupon-type]');
+  if (typeSel) {
+    var valueWrap = $('[data-coupon-value]');
+    var valueLabel = $('[data-value-label]');
+    var valueInput = $('input[name="value"]', valueWrap);
+    typeSel.addEventListener('change', function () {
+      var t = typeSel.value;
+      valueWrap.hidden = t === 'free_delivery';
+      valueLabel.textContent = t === 'amount' ? 'Zľava (€)' : 'Zľava (%)';
+      valueInput.placeholder = t === 'amount' ? '2,00' : '10';
+    });
+  }
+  var gen = $('[data-gen-code]');
+  if (gen) {
+    gen.addEventListener('click', function () {
+      var abc = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+      var buf = new Uint32Array(6);
+      (window.crypto || window.msCrypto).getRandomValues(buf);
+      var code = 'PIZZA-';
+      for (var i = 0; i < buf.length; i++) code += abc[buf[i] % abc.length];
+      var input = $('[data-code-input]');
+      input.value = code;
+      anim(input, [{ backgroundColor: 'rgba(242,169,0,.35)' }, { backgroundColor: 'transparent' }], { duration: 700 });
+    });
+  }
+
   /* ---------- sound, vibration, notifications ---------- */
   var actx = null;
   var soundOn = getPref('ps_sound') === '1';
@@ -318,7 +345,8 @@
       '</span></div>' +
       '<ul class="o-items">' + items + '</ul>' +
       (c.note ? '<p class="o-note">📝 ' + esc(c.note) + '</p>' : '') +
-      '<p class="o-total"><span>' + esc(o.payment) + (o.delivery ? ' · donáška ' + money(o.delivery) : '') + '</span><b>' + money(o.total) + '</b></p>' +
+      '<p class="o-total"><span>' + esc(o.payment) + (o.delivery ? ' · donáška ' + money(o.delivery) : '') +
+      (o.discount ? ' <span class="o-coupon">🎟️ ' + esc(o.coupon) + ' −' + money(o.discount) + '</span>' : '') + '</span><b>' + money(o.total) + '</b></p>' +
       (acts ? '<div class="o-actions">' + acts + '</div>' : '') +
       '</article>';
   }

@@ -56,6 +56,11 @@ switch ($action) {
         $st->execute([($_POST['on'] ?? '') === '1' ? 1 : 0, now_str(), (int) ($_POST['id'] ?? 0)]);
         json_out(['ok' => true]);
 
+    case 'coupon_toggle':
+        $st = db()->prepare('UPDATE coupons SET is_active = ? WHERE id = ?');
+        $st->execute([($_POST['on'] ?? '') === '1' ? 1 : 0, (int) ($_POST['id'] ?? 0)]);
+        json_out(['ok' => true]);
+
     case 'topping_toggle':
         $st = db()->prepare('UPDATE toppings SET is_available = ? WHERE id = ?');
         $st->execute([($_POST['on'] ?? '') === '1' ? 1 : 0, (int) ($_POST['id'] ?? 0)]);

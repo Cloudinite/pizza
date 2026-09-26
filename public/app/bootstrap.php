@@ -30,6 +30,7 @@ require __DIR__ . '/lib/settings.php';
 require __DIR__ . '/lib/hours.php';
 require __DIR__ . '/lib/menu.php';
 require __DIR__ . '/lib/orders.php';
+require __DIR__ . '/lib/coupons.php';
 require __DIR__ . '/lib/view.php';
 
 set_exception_handler(static function (Throwable $e): void {
@@ -53,4 +54,10 @@ set_exception_handler(static function (Throwable $e): void {
 if (!is_file($psConfigFile) && !defined('PS_INSTALLER')) {
     header('Location: /install/', true, 302);
     exit;
+}
+
+// New version uploaded over an older database → upgrade it once, automatically.
+if (is_file($psConfigFile) && !defined('PS_INSTALLER') && (int) setting('schema_version') < PS_SCHEMA_VERSION) {
+    db_migrate(db(), (int) setting('schema_version'));
+    settings(true);
 }

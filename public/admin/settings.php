@@ -114,6 +114,15 @@ admin_start('Nastavenia', 'settings');
 ?>
 <?php foreach ($errors as $err): ?><p class="a-err" role="alert"><?= e($err) ?></p><?php endforeach; ?>
 
+<?php
+$couponCount = (int) db()->query('SELECT COUNT(*) FROM coupons WHERE is_active = 1')->fetchColumn();
+?>
+<a class="a-card a-link-card" href="/admin/coupons.php">
+  <span class="a-link-ico" aria-hidden="true">🎟️</span>
+  <span><b>Zľavové kupóny</b><small><?= $couponCount ? $couponCount . ' ' . plural($couponCount, 'aktívny kupón', 'aktívne kupóny', 'aktívnych kupónov') : 'Vytvorte kód na zľavu, napr. PIZZA10' ?></small></span>
+  <span class="a-link-arrow" aria-hidden="true">›</span>
+</a>
+
 <section class="a-card">
   <h2>Vzhľad aplikácie</h2>
   <p class="a-muted">Platí len pre toto zariadenie. Tmavý režim šetrí oči večer a batériu telefónu.</p>

@@ -11,6 +11,7 @@ It's plain PHP + MariaDB with no frameworks or build step, made for **WebSupport
 | **Order tracking** (`/objednavka/…`) | The customer gets a private link, valid for **24 h**, with a live timeline: Prijatá → Pripravujeme → Pripravená → Na ceste → Doručená (pickup: … → Na vyzdvihnutie → Vyzdvihnutá). A "Sledovať stav" bar on the website takes them back to it. |
 | **Admin app** (`/admin/`) | Installable on Android and iPhone. New orders appear on their own, with a sound, vibration and a notification. Each order shows the price, address (with a **Navigate** button), a tap-to-call phone number, and the pizzas with their toppings. One big button moves the order to its next step, all the way to **Delivered / Done**. |
 | **Menu management** (`/admin/menu.php`) | Add, edit or delete items. Set prices, descriptions and photos, and switch items to *sold out* with one tap. Add the current **specialty**, edit toppings and their prices, and manage categories. |
+| **Coupons** (`/admin/coupons.php`, from *Nastavenia → Zľavové kupóny*) | Create codes such as `PIZZA10`: % off, € off or free delivery. Optional minimum order, max number of uses, valid-from/to dates and "once per customer" (checked by phone number). Switch a code on/off with one tap. Customers enter the code in the cart and see the discount instantly; the server re-checks it when the order is placed. The discount shows on the order page and in the app. |
 | **Look** | Light or dark mode (or follow the phone), chosen per device under *Nastavenia → Vzhľad aplikácie* or with the ☀/🌙 button in the top bar. |
 | **Settings** (`/admin/settings.php`) | Opening hours (default daily 10:00–21:00), a pause switch for online orders, a banner message, delivery fee and area, address, phone, social links, company details for the GDPR page, and password. |
 | **Legal** | `/ochrana-osobnych-udajov` (GDPR privacy policy) and `/cookies` (cookie policy). Only strictly necessary cookies are used, so no consent banner is needed. |
@@ -66,6 +67,17 @@ You stay logged in for 30 days. Changing the password logs out every other devic
 - `app/` (code, config, SQL) is blocked from the web. Uploaded photos are re-encoded by GD (which strips metadata), and nothing in `uploads/` can execute.
 
 The privacy and cookie texts are a solid template for a small Slovak food business, but have them reviewed for your specific company.
+
+## Database updates
+New versions upgrade the database automatically: just upload the files. On the first page load, missing tables and columns are added (e.g. coupons). Nothing needs to be imported by hand.
+
+## Devices & browsers
+Tested at 280 px (Galaxy Fold), 320 px (iPhone SE), 360/390/412 px phones, landscape phones, tablets (768/1024 px), laptop (1366 px) and desktop (1920 px):
+- no sideways scrolling on any page
+- the toppings sheet always fits
+- the page scrollbar is hidden on PC (wheel, touchpad, keyboard and touch scrolling still work)
+
+Newer effects (page transitions, scroll animations) are progressive: older Safari/Firefox simply show the page without them. Checkout, the cart and coupons also work with JavaScript turned off.
 
 ## Look & motion
 - Warm, low-glare colours: a soft off-white page with warm near-black text instead of pure white/black. It still passes WCAG AA contrast.

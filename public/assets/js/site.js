@@ -261,14 +261,86 @@
     var co = $('[data-checkout]');
     if (!co || !DATA) return;
     var fee = +co.getAttribute('data-fee') || 0;
+    var coupon = null;
+    try { coupon = JSON.parse(co.getAttribute('data-coupon') || 'null'); } catch (e) { coupon = null; }
+
+    // same integer maths as the server (app/lib/coupons.php), so the preview matches to the cent
+    function couponDiscount(sub, mode) {
+      if (!coupon || sub < coupon.min) return 0;
+      if (coupon.type === 'percent') return Math.floor((sub * Math.min(100, coupon.value) + 50) / 100);
+      if (coupon.type === 'amount') return Math.min(coupon.value, sub);
+      if (coupon.type === 'free_delivery') return mode === 'delivery' ? fee : 0;
+      return 0;
+    }
 
     function totals() {
       var lines = readCart();
       var sub = subtotal(lines);
       $$('[data-subtotal]').forEach(function (el) { el.textContent = money(sub); });
-      $$('[data-total-pickup]').forEach(function (el) { el.textContent = money(sub); });
-      $$('[data-total-delivery]').forEach(function (el) { el.textContent = money(sub + fee); });
+      ['pickup', 'delivery'].forEach(function (mode) {
+        var d = couponDiscount(sub, mode);
+        var t = Math.max(0, sub - d + (mode === 'delivery' ? fee : 0));
+        $$('[data-total-' + mode + ']').forEach(function (el) { if (el.textContent !== money(t)) { el.textContent = money(t); bump(el); } });
+        $$('[data-disc-' + mode + ']').forEach(function (el) {
+          el.textContent = coupon && coupon.type === 'free_delivery' && mode === 'pickup' ? 'len pri donáške' : '−' + money(d);
+        });
+      });
+      var msg = $('[data-coupon-msg]');
+      if (msg && coupon && !msg.classList.contains('is-err')) {
+        msg.textContent = sub < coupon.min ? 'Kód platí pri objednávke od ' + money(coupon.min) + '.' : '';
+      }
       return lines;
+    }
+
+    /* ----- coupon: apply / remove without reloading (the typed form stays as it is) ----- */
+    var cForm = $('[data-coupon-form]');
+    var cApplied = $('[data-coupon-applied]');
+    var cRemove = $('[data-coupon-remove]');
+    var cMsg = $('[data-coupon-msg]');
+    var dRow = $('[data-discount-row]');
+    function setCoupon(c) {
+      coupon = c;
+      cForm.hidden = !!c;
+      cApplied.hidden = !c;
+      dRow.hidden = !c;
+      $$('[data-coupon-code]').forEach(function (el) { el.textContent = c ? c.code : ''; });
+      $('[data-coupon-label]').textContent = c ? c.label : '';
+      $$('[data-coupon-field]').forEach(function (i) { i.value = c ? c.code : ''; });
+      cMsg.classList.remove('is-err');
+      cMsg.textContent = '';
+      totals();
+      popIn(c ? cApplied : cForm);
+      if (c) anim(dRow, [{ opacity: 0, transform: 'translateY(-4px)' }, { opacity: 1, transform: 'none' }], { duration: 300, easing: EASE });
+    }
+    function send(form) {
+      return fetch('/kosik', { method: 'POST', body: new FormData(form), credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (r) { return r.json(); });
+    }
+    function couponError(text) {
+      cMsg.textContent = text;
+      cMsg.classList.add('is-err');
+      anim($('input[name="code"]', cForm), [{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(-3px)' }, { transform: 'translateX(0)' }], { duration: 320 });
+    }
+    if (cForm && cApplied && cRemove) {
+      cForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var input = $('input[name="code"]', cForm);
+        var btn = $('button', cForm);
+        if (!input.value.trim()) { input.focus(); return; }
+        if (btn.getAttribute('aria-busy') === 'true') return;
+        btn.setAttribute('aria-busy', 'true');
+        send(cForm)
+          .then(function (d) {
+            if (d.ok) { input.value = ''; setCoupon(d.coupon); }
+            else couponError(d.error || 'Kód sa nepodarilo použiť.');
+          })
+          .catch(function () { couponError('Kód sa nepodarilo overiť. Skontrolujte pripojenie a skúste znova.'); })
+          .then(function () { btn.removeAttribute('aria-busy'); });
+      });
+      cRemove.addEventListener('submit', function (e) {
+        e.preventDefault();
+        send(cRemove).then(function (d) { if (d.ok) setCoupon(null); }).catch(function () { cRemove.submit(); });
+      });
     }
 
     var cartForm = $('[data-cartform]');

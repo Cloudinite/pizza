@@ -23,6 +23,7 @@ page_start([
         <thead><tr><th scope="col">Názov</th><th scope="col">Účel</th><th scope="col">Platnosť</th></tr></thead>
         <tbody>
           <tr><td><code>ps_cart</code></td><td>Obsah vášho košíka (ID položiek, počet kusov a prílohy).</td><td>2 dni</td></tr>
+          <tr><td><code>ps_coupon</code></td><td>Zľavový kód, ktorý ste zadali v košíku.</td><td>1 deň</td></tr>
           <tr><td><code>ps_track</code></td><td>Odkaz na sledovanie vašej poslednej objednávky (kód objednávky a tajný kľúč).</td><td>24 hodín</td></tr>
           <tr><td><code>ps_csrf</code></td><td>Bezpečnostný token, ktorý chráni objednávkový formulár pred podvrhnutím.</td><td>do zatvorenia prehliadača</td></tr>
           <tr><td><code>ps_adm</code></td><td>Prihlásenie personálu do administrácie. Návštevníkov webu sa netýka.</td><td>30 dní</td></tr>

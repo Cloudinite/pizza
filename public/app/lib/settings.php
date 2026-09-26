@@ -33,6 +33,7 @@ function setting_defaults(): array
         'delivery_min_cents' => '1000',
         'delivery_area'      => 'Pezinok',
         'retention_days'     => '90',
+        'schema_version'     => '1',
     ];
 }
 

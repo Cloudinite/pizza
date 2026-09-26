@@ -38,8 +38,35 @@ if (is_post()) {
         redirect($back);
     }
 
+    if ($op === 'coupon_apply' || $op === 'coupon_remove') {
+        $wantsJson = str_contains((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json');
+        $error = '';
+        $coupon = null;
+        if (!csrf_valid($_POST['csrf'] ?? null) || !same_origin_request()) {
+            $error = 'Platnosť stránky vypršala, obnovte ju prosím.';
+        } elseif ($op === 'coupon_remove') {
+            coupon_cookie_set(null);
+        } elseif (!rate_allow('coupon', ip_ident(), 25, 600)) {
+            $error = 'Príliš veľa pokusov. Skúste to o pár minút.';
+        } else {
+            $coupon = coupon_find(post_str('code', 40));
+            $error = coupon_unusable_reason($coupon);
+            if ($error === '') {
+                coupon_cookie_set($coupon['code']);
+            }
+        }
+        if ($wantsJson) {
+            json_out($error !== '' ? ['ok' => false, 'error' => $error] : ['ok' => true, 'coupon' => coupon_js($coupon)]);
+        }
+        if ($error === '') {
+            redirect('/kosik');
+        }
+        $errors['coupon'] = $error;
+    }
+
     if ($op === 'order') {
         $priced = cart_price($lines, $menu);
+        $coupon = coupon_from_cookie();
         if (!csrf_valid($_POST['csrf'] ?? null) || !same_origin_request()) {
             $errors['form'] = 'Platnosť formulára vypršala. Skontrolujte údaje a odošlite ho prosím znova.';
         } elseif (post_str('website') !== '' || !form_ts_ok($_POST['ts'] ?? null, 3)) {
@@ -52,15 +79,36 @@ if (is_post()) {
         } elseif (cart_serialize(cart_parse(post_str('cart', 1500))) !== cart_serialize($lines)) {
             // the cart changed (e.g. in another tab) after this page was shown – never charge a total the customer did not see
             $errors['form'] = 'Košík sa medzičasom zmenil. Skontrolujte prosím súhrn a odošlite objednávku znova.';
+        } elseif (coupon_normalize(post_str('coupon', 40)) !== ($coupon['code'] ?? '')) {
+            $errors['form'] = 'Zľavový kód sa medzičasom zmenil. Skontrolujte prosím súhrn a odošlite objednávku znova.';
         }
         [$clean, $fieldErrors] = order_validate($priced, $state);
         $form = array_merge($form, $clean);
         if (!$errors) {
             $errors = $fieldErrors;
         }
+        if (!$errors && $coupon) {
+            // re-check the coupon now that we know who orders (once-per-customer) and the exact moment
+            $why = coupon_unusable_reason($coupon);
+            if ($why === '' && (int) $coupon['once_per_customer'] && coupon_used_by_phone((int) $coupon['id'], $clean['phone'])) {
+                $why = 'Tento zľavový kód ste už raz použili.';
+            }
+            if ($why !== '') {
+                coupon_cookie_set(null);
+                $errors['coupon'] = $why . ' Kód sme odobrali – skontrolujte novú sumu a odošlite objednávku znova.';
+            }
+        }
         if (!$errors) {
-            $result = order_create($priced, $clean);
+            try {
+                $result = order_create($priced, $clean, $coupon);
+            } catch (CouponException $e) {
+                coupon_cookie_set(null);
+                $errors['coupon'] = $e->getMessage() . ' Kód sme odobrali – skontrolujte novú sumu a odošlite objednávku znova.';
+            }
+        }
+        if (!$errors) {
             rate_record('order', ip_ident());
+            coupon_cookie_set(null);
             cart_write([]);
             // lets the site show a "track your order" bar for the next 24 hours
             set_cookie('ps_track', $result['code'] . '.' . $result['token'], ORDER_LINK_HOURS * 3600);
@@ -77,6 +125,25 @@ if ($priced['changed'] && !is_post()) {
 $deliveryOn = setting_bool('delivery_enabled');
 $fee = setting_int('delivery_fee_cents');
 $s = settings();
+
+// coupon from the cookie: drop it (with a note) if it stopped being valid
+$coupon = coupon_from_cookie();
+$couponMsg = $errors['coupon'] ?? '';
+if (($_COOKIE[COUPON_COOKIE] ?? '') !== '' && (!$coupon || coupon_unusable_reason($coupon) !== '')) {
+    $couponMsg = $couponMsg ?: coupon_unusable_reason($coupon);
+    coupon_cookie_set(null);
+    $coupon = null;
+}
+$totals = checkout_totals($priced['subtotal'], $coupon);
+if ($coupon && $couponMsg === '' && $priced['subtotal'] < (int) $coupon['min_order_cents']) {
+    $couponMsg = 'Kód platí pri objednávke od ' . money((int) $coupon['min_order_cents']) . '.';
+}
+$discText = static function (array $t, string $mode) use ($coupon): string {
+    if ($coupon && $coupon['type'] === 'free_delivery' && $mode === 'pickup') {
+        return 'len pri donáške';
+    }
+    return '−' . money($t[$mode]['discount']);
+};
 
 page_start([
     'title' => 'Košík a objednávka – Pizza Slice Pezinok',
@@ -112,7 +179,7 @@ function err_attr(array $errors, string $key): string
     <a class="btn btn-primary btn-lg" href="/menu">Prejsť na menu</a>
   </div>
 <?php else: ?>
-  <div class="checkout<?= $form['fulfillment'] === 'delivery' ? ' is-delivery' : '' ?>" data-checkout data-fee="<?= $deliveryOn ? $fee : 0 ?>">
+  <div class="checkout<?= $form['fulfillment'] === 'delivery' ? ' is-delivery' : '' ?>" data-checkout data-fee="<?= $deliveryOn ? $fee : 0 ?>" data-coupon="<?= e(json_encode(coupon_js($coupon), JSON_UNESCAPED_UNICODE)) ?>">
     <section class="card co-cart" aria-labelledby="cart-h">
       <h2 id="cart-h">Tvoja objednávka</h2>
       <?php if ($priced['changed'] && !isset($errors['form'])): ?>
@@ -141,13 +208,36 @@ function err_attr(array $errors, string $key): string
       </form>
       <dl class="sum">
         <div><dt>Medzisúčet</dt><dd data-subtotal><?= e(money($priced['subtotal'])) ?></dd></div>
+        <div class="sum-discount" data-discount-row<?= $coupon ? '' : ' hidden' ?>>
+          <dt>Zľava <span class="coupon-tag" data-coupon-code><?= e($coupon['code'] ?? '') ?></span></dt>
+          <dd><span class="t-pickup" data-disc-pickup><?= e($discText($totals, 'pickup')) ?></span><span class="t-delivery" data-disc-delivery><?= e($discText($totals, 'delivery')) ?></span></dd>
+        </div>
         <?php if ($deliveryOn): ?>
         <div class="sum-delivery"><dt>Donáška</dt><dd><?= e(money($fee)) ?></dd></div>
         <?php endif; ?>
         <div class="sum-total"><dt>Spolu</dt>
-          <dd><span class="t-pickup" data-total-pickup><?= e(money($priced['subtotal'])) ?></span><?php if ($deliveryOn): ?><span class="t-delivery" data-total-delivery><?= e(money($priced['subtotal'] + $fee)) ?></span><?php endif; ?></dd>
+          <dd><span class="t-pickup" data-total-pickup><?= e(money($totals['pickup']['total'])) ?></span><?php if ($deliveryOn): ?><span class="t-delivery" data-total-delivery><?= e(money($totals['delivery']['total'])) ?></span><?php endif; ?></dd>
         </div>
       </dl>
+
+      <div class="coupon" data-coupon-box>
+        <form method="post" action="/kosik" class="coupon-form" data-coupon-form<?= $coupon ? ' hidden' : '' ?>>
+          <input type="hidden" name="op" value="coupon_apply">
+          <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+          <label class="sr" for="c-code">Zľavový kód</label>
+          <input class="input coupon-input" id="c-code" name="code" placeholder="Máš zľavový kód?" maxlength="32" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="done">
+          <button class="btn btn-ghost coupon-btn" type="submit">Použiť</button>
+        </form>
+        <div class="coupon-applied" data-coupon-applied<?= $coupon ? '' : ' hidden' ?>>
+          <span class="coupon-chip"><svg class="ico" aria-hidden="true"><use href="#i-ticket"/></svg><b data-coupon-code><?= e($coupon['code'] ?? '') ?></b><span data-coupon-label><?= e($coupon ? coupon_label($coupon) : '') ?></span></span>
+          <form method="post" action="/kosik" data-coupon-remove>
+            <input type="hidden" name="op" value="coupon_remove">
+            <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
+            <button class="coupon-x" type="submit" aria-label="Odstrániť zľavový kód">×</button>
+          </form>
+        </div>
+        <p class="coupon-msg<?= isset($errors['coupon']) ? ' is-err' : '' ?>" data-coupon-msg role="status" aria-live="polite"><?= e($couponMsg) ?></p>
+      </div>
       <a class="link-add" href="/menu">+ Pridať ďalšie kúsky</a>
     </section>
 
@@ -160,6 +250,8 @@ function err_attr(array $errors, string $key): string
       <?php endif; ?>
       <?php if (isset($errors['form'])): ?>
         <p class="notice notice-err" role="alert"><?= e($errors['form']) ?></p>
+      <?php elseif (isset($errors['coupon']) && count($errors) === 1): ?>
+        <p class="notice notice-err" role="alert"><?= e($errors['coupon']) ?></p>
       <?php elseif ($errors): ?>
         <p class="notice notice-err" role="alert">Skontrolujte prosím označené polia.</p>
       <?php endif; ?>
@@ -168,6 +260,7 @@ function err_attr(array $errors, string $key): string
         <input type="hidden" name="op" value="order">
         <input type="hidden" name="csrf" value="<?= e(csrf_token()) ?>">
         <input type="hidden" name="ts" value="<?= e(form_ts()) ?>">
+        <input type="hidden" name="coupon" value="<?= e($coupon['code'] ?? '') ?>" data-coupon-field>
         <input type="hidden" name="cart" value="<?= e(cart_serialize(array_map(static fn ($l) => ['id' => $l['id'], 'qty' => $l['qty'], 'tops' => $l['tops']], $priced['lines']))) ?>">
         <div class="hp" aria-hidden="true">
           <label for="f-website">Nevypĺňajte</label>
@@ -235,7 +328,7 @@ function err_attr(array $errors, string $key): string
         </fieldset>
 
         <button class="btn btn-primary btn-lg btn-block" type="submit" data-submit<?= $state['ok'] ? '' : ' disabled' ?>>
-          Odoslať objednávku ·&nbsp;<span class="t-pickup" data-total-pickup><?= e(money($priced['subtotal'])) ?></span><?php if ($deliveryOn): ?><span class="t-delivery" data-total-delivery><?= e(money($priced['subtotal'] + $fee)) ?></span><?php endif; ?>
+          Odoslať objednávku ·&nbsp;<span class="t-pickup" data-total-pickup><?= e(money($totals['pickup']['total'])) ?></span><?php if ($deliveryOn): ?><span class="t-delivery" data-total-delivery><?= e(money($totals['delivery']['total'])) ?></span><?php endif; ?>
         </button>
         <p class="fineprint">Spojenie je šifrované (HTTPS). Platíš až pri prevzatí. Údaje použijeme len na vybavenie objednávky – viac v <a href="/ochrana-osobnych-udajov">zásadách ochrany osobných údajov</a>.</p>
       </form>
