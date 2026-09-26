@@ -9,16 +9,22 @@ function admin_start(string $title, string $tab, array $o = []): void
     header('Cache-Control: no-store');
     header('X-Robots-Tag: noindex, nofollow');
     $u = admin_current();
+    $theme = admin_theme();
     ?>
 <!doctype html>
-<html lang="sk">
+<html lang="sk"<?= $theme === 'auto' ? '' : ' data-theme="' . $theme . '"' ?>>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow">
 <title><?= e($title) ?> – Pizza Slice Admin</title>
 <link rel="manifest" href="/admin/manifest.webmanifest">
-<meta name="theme-color" content="#b41116">
+<?php if ($theme === 'auto'): ?>
+<meta name="theme-color" content="#b41116" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1b1a1d" media="(prefers-color-scheme: dark)">
+<?php else: ?>
+<meta name="theme-color" content="<?= $theme === 'dark' ? '#1b1a1d' : '#b41116' ?>">
+<?php endif; ?>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="PS Admin">
@@ -37,12 +43,14 @@ function admin_start(string $title, string $tab, array $o = []): void
     <img src="/assets/img/logo-104.webp" width="40" height="37" alt="">
     <h1><?= e($title) ?></h1>
     <?php if (!empty($o['top_right'])) { echo $o['top_right']; } ?>
+    <button type="button" class="a-theme-btn" data-theme-btn data-mode="<?= e($theme) ?>" aria-label="Vzhľad: <?= e(ADMIN_THEMES[$theme]) ?> (ťuknutím zmeníte)" title="Svetlý / tmavý režim">
+      <svg class="i-light" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      <svg class="i-dark" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+      <svg class="i-auto" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/></svg>
+    </button>
   </div>
 </header>
 <main class="a-main">
-<?php if (!empty($_GET['ok'])): ?>
-  <p class="a-flash" role="status"><?= e(admin_flash_text((string) $_GET['ok'])) ?></p>
-<?php endif; ?>
 <?php
 }
 
@@ -51,6 +59,11 @@ function admin_end(): void
     $u = admin_current();
     ?>
 </main>
+<?php if (!empty($_GET['ok'])): ?>
+<div class="a-toast is-ok is-on" role="status" data-toast data-flash><?= e(admin_flash_text((string) $_GET['ok'])) ?></div>
+<?php else: ?>
+<div class="a-toast" role="status" data-toast></div>
+<?php endif; ?>
 <?php if ($u): ?>
 <nav class="a-tabs" aria-label="Sekcie administrácie">
   <a href="/admin/" data-tab="orders"><svg aria-hidden="true" viewBox="0 0 24 24"><path d="M6 3h12a1 1 0 0 1 1 1v17l-3-2-2 2-2-2-2 2-2-2-3 2V4a1 1 0 0 1 1-1zm3 5h6m-6 4h6m-6 4h4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Objednávky</span><b class="a-tab-badge" data-new-badge hidden>0</b></a>
@@ -62,6 +75,15 @@ function admin_end(): void
 </body>
 </html>
 <?php
+}
+
+const ADMIN_THEMES = ['auto' => 'podľa telefónu', 'light' => 'svetlý', 'dark' => 'tmavý'];
+
+/** light / dark / auto (follow the phone) – remembered in a cookie so the server renders the right colours. */
+function admin_theme(): string
+{
+    $t = $_COOKIE['ps_theme'] ?? '';
+    return is_string($t) && isset(ADMIN_THEMES[$t]) ? $t : 'auto';
 }
 
 function admin_flash_text(string $key): string

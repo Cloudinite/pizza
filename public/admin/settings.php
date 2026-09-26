@@ -114,6 +114,17 @@ admin_start('Nastavenia', 'settings');
 ?>
 <?php foreach ($errors as $err): ?><p class="a-err" role="alert"><?= e($err) ?></p><?php endforeach; ?>
 
+<section class="a-card">
+  <h2>Vzhľad aplikácie</h2>
+  <p class="a-muted">Platí len pre toto zariadenie. Tmavý režim šetrí oči večer a batériu telefónu.</p>
+  <?php $theme = admin_theme(); ?>
+  <div class="a-seg" role="group" aria-label="Vzhľad aplikácie">
+    <button type="button" data-theme-set="light" aria-pressed="<?= $theme === 'light' ? 'true' : 'false' ?>">☀️ Svetlý</button>
+    <button type="button" data-theme-set="dark" aria-pressed="<?= $theme === 'dark' ? 'true' : 'false' ?>">🌙 Tmavý</button>
+    <button type="button" data-theme-set="auto" aria-pressed="<?= $theme === 'auto' ? 'true' : 'false' ?>">📱 Ako telefón</button>
+  </div>
+</section>
+
 <form method="post" class="a-form">
   <?= admin_csrf_field() ?>
   <input type="hidden" name="action" value="settings">

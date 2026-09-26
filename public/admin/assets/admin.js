@@ -13,6 +13,74 @@
     get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
     set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
   };
+  // preferences go into cookies so the server can draw buttons/theme in their final state (no jumps, no flash)
+  function getPref(k) { var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + k + '=([^;]*)')); return m ? m[1] : null; }
+  function setPref(k, v) {
+    document.cookie = k + '=' + v + '; Path=/admin/; Max-Age=31536000; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
+  }
+  var html = document.documentElement;
+  var reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var EASE = 'cubic-bezier(.22, 1, .36, 1)';
+  function anim(el, frames, opts) { return (!reduced && el && el.animate) ? el.animate(frames, opts) : null; }
+
+  /* ---------- toast (floating, never moves the page) ---------- */
+  var toastEl = $('[data-toast]');
+  var toastTimer;
+  function toast(msg, ok) {
+    if (!toastEl) return;
+    toastEl.textContent = msg;
+    toastEl.classList.toggle('is-ok', !!ok);
+    toastEl.classList.add('is-on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('is-on'); }, 2400);
+  }
+  if ($('[data-flash]')) {
+    toastTimer = setTimeout(function () { toastEl.classList.remove('is-on'); }, 2600);
+    // drop ?ok=… so a reload does not show the message again
+    if (history.replaceState) history.replaceState(null, '', location.pathname + location.hash);
+  }
+
+  /* ---------- light / dark theme ---------- */
+  var THEME_LABEL = { light: 'svetlý', dark: 'tmavý', auto: 'podľa telefónu' };
+  var darkMq = window.matchMedia ? matchMedia('(prefers-color-scheme: dark)') : null;
+  function themeMode() { return html.getAttribute('data-theme') || 'auto'; }
+  function paintThemeColor(mode) {
+    var dark = mode === 'dark' || (mode === 'auto' && darkMq && darkMq.matches);
+    $$('meta[name="theme-color"]').forEach(function (m) { m.remove(); });
+    var meta = document.createElement('meta');
+    meta.name = 'theme-color';
+    meta.content = dark ? '#1b1a1d' : '#b41116';
+    document.head.appendChild(meta);
+  }
+  function applyTheme(mode) {
+    var apply = function () {
+      if (mode === 'auto') html.removeAttribute('data-theme'); else html.setAttribute('data-theme', mode);
+      paintThemeColor(mode);
+      $$('[data-theme-btn]').forEach(function (b) {
+        b.setAttribute('data-mode', mode);
+        b.setAttribute('aria-label', 'Vzhľad: ' + THEME_LABEL[mode] + ' (ťuknutím zmeníte)');
+      });
+      $$('[data-theme-set]').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-theme-set') === mode ? 'true' : 'false'); });
+    };
+    setPref('ps_theme', mode);
+    if (document.startViewTransition && !reduced) document.startViewTransition(apply);
+    else {
+      html.classList.add('theme-anim');
+      apply();
+      setTimeout(function () { html.classList.remove('theme-anim'); }, 450);
+    }
+    toast('Vzhľad: ' + THEME_LABEL[mode]);
+  }
+  $$('[data-theme-btn]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var order = ['light', 'dark', 'auto'];
+      applyTheme(order[(order.indexOf(themeMode()) + 1) % order.length]);
+    });
+  });
+  $$('[data-theme-set]').forEach(function (b) {
+    b.addEventListener('click', function () { applyTheme(b.getAttribute('data-theme-set')); });
+  });
+  if (darkMq && darkMq.addEventListener) darkMq.addEventListener('change', function () { if (themeMode() === 'auto') paintThemeColor('auto'); });
 
   function money(c) { return (c / 100).toFixed(2).replace('.', ',') + ' €'; }
   function esc(s) {
@@ -85,7 +153,7 @@
 
   /* ---------- sound, vibration, notifications ---------- */
   var actx = null;
-  var soundOn = store.get('ps_sound') === '1';
+  var soundOn = getPref('ps_sound') === '1';
   function ensureAudio() {
     if (!actx) {
       var AC = window.AudioContext || window.webkitAudioContext;
@@ -126,7 +194,7 @@
   if (notifyBtn) {
     notifyBtn.addEventListener('click', function () {
       soundOn = !soundOn;
-      store.set('ps_sound', soundOn ? '1' : '0');
+      setPref('ps_sound', soundOn ? '1' : '0');
       if (soundOn) {
         ensureAudio();
         beep();
@@ -152,7 +220,7 @@
   /* ---------- wake lock (keep the kitchen tablet screen on) ---------- */
   var wakeBtn = $('[data-wake]');
   var wakeLock = null;
-  var wakeWanted = store.get('ps_wake') === '1';
+  var wakeWanted = getPref('ps_wake') === '1';
   function paintWake() { if (wakeBtn) { wakeBtn.textContent = 'Displej nezhasína: ' + (wakeWanted ? 'zap.' : 'vyp.'); wakeBtn.classList.toggle('is-on', wakeWanted); } }
   function requestWake() {
     if (!wakeWanted || !('wakeLock' in navigator) || document.hidden) return;
@@ -163,7 +231,7 @@
     paintWake();
     wakeBtn.addEventListener('click', function () {
       wakeWanted = !wakeWanted;
-      store.set('ps_wake', wakeWanted ? '1' : '0');
+      setPref('ps_wake', wakeWanted ? '1' : '0');
       if (wakeWanted) requestWake(); else if (wakeLock) { wakeLock.release(); wakeLock = null; }
       paintWake();
     });
@@ -200,7 +268,7 @@
     var clock = $('[data-stat-clock]');
     if (clock) clock.textContent = d.time;
     var conn = $('[data-conn]');
-    if (conn) { conn.textContent = '↻ obnoviť'; conn.classList.remove('is-bad'); }
+    if (conn && conn.classList.contains('is-bad')) { conn.innerHTML = '<i class="spin" aria-hidden="true">↻</i> obnoviť'; conn.classList.remove('is-bad'); }
   }
 
   /* ---------- orders board ---------- */
@@ -236,7 +304,7 @@
     var acts = actionsFor(o).map(function (a) {
       return '<button type="button" class="a-btn ' + a[2] + '" data-set="' + a[0] + '" data-id="' + o.id + '" data-no="' + o.no + '">' + a[1] + '</button>';
     }).join('');
-    return '<article class="o-card st-' + o.status + '">' +
+    return '<article class="o-card st-' + o.status + '" data-oid="' + o.id + '">' +
       '<div class="o-head"><span class="o-no">č. ' + o.no + '</span><span class="o-code">#' + esc(o.code) + '</span>' +
       '<span class="o-st st-' + o.status + '">' + STATUS[o.status] + '</span></div>' +
       '<p class="o-meta"><span class="o-type ' + (o.fulfillment === 'delivery' ? 'is-del">🚗 Donáška' : 'is-pick">🏪 Osobný odber') + '</span> ' +
@@ -265,12 +333,63 @@
     var tog = $('[data-ordering]');
     if (tog && typeof d.ordering === 'boolean' && document.activeElement !== tog) {
       tog.checked = d.ordering;
-      $('[data-ordering-label]').textContent = d.ordering ? 'Prijímame' : 'Pozastavené';
+      paintOrdering(d.ordering);
     }
     if (json === lastJson) return;
+    var first = lastJson === '';
     lastJson = json;
-    board.innerHTML = d.orders.map(card).join('');
+    flipRender(d.orders.map(card).join(''), first);
     $('[data-empty]').hidden = d.orders.length > 0;
+  }
+
+  /* re-render the board, but let cards glide to their new place instead of jumping (FLIP) */
+  function flipRender(markup, first) {
+    var before = {};
+    var ghosts = [];
+    if (!first && !reduced) {
+      $$('.o-card', board).forEach(function (c) { before[c.getAttribute('data-oid')] = c; });
+    }
+    var rects = {};
+    Object.keys(before).forEach(function (id) { rects[id] = before[id].getBoundingClientRect(); });
+    board.innerHTML = markup;
+    if (first || reduced) return;
+    var now = {};
+    $$('.o-card', board).forEach(function (c) {
+      var id = c.getAttribute('data-oid');
+      now[id] = true;
+      var r0 = rects[id];
+      if (!r0) {
+        anim(c, [{ opacity: 0, transform: 'translateY(-14px) scale(.97)' }, { opacity: 1, transform: 'none' }], { duration: 420, easing: EASE });
+        return;
+      }
+      var r1 = c.getBoundingClientRect();
+      var dx = r0.left - r1.left, dy = r0.top - r1.top;
+      if (dx || dy) anim(c, [{ transform: 'translate(' + dx + 'px,' + dy + 'px)' }, { transform: 'none' }], { duration: 380, easing: EASE });
+    });
+    // cards that left the list fade out where they were (as floating ghosts, so nothing jumps)
+    Object.keys(rects).forEach(function (id) {
+      if (now[id]) return;
+      var g = before[id];
+      var r = rects[id];
+      g.style.position = 'fixed';
+      g.style.left = r.left + 'px';
+      g.style.top = r.top + 'px';
+      g.style.width = r.width + 'px';
+      g.style.margin = '0';
+      g.style.zIndex = '15';
+      g.style.pointerEvents = 'none';
+      document.body.appendChild(g);
+      ghosts.push(g);
+      var a = anim(g, [{ opacity: 1, transform: 'none' }, { opacity: 0, transform: 'scale(.94) translateY(8px)' }], { duration: 320, easing: EASE });
+      if (a) a.onfinish = function () { g.remove(); }; else g.remove();
+    });
+  }
+
+  var orderingCard = $('[data-ordering-card]');
+  function paintOrdering(on) {
+    if (orderingCard) orderingCard.classList.toggle('is-off', !on);
+    var l = $('[data-ordering-label]');
+    if (l) l.textContent = on ? 'Prijímame – web berie objednávky' : 'Pozastavené – web objednávky neberie';
   }
 
   function poll() {
@@ -281,7 +400,7 @@
     }).catch(function (e) {
       if (e.message === 'auth') return;
       var conn = $('[data-conn]');
-      if (conn) { conn.textContent = 'bez spojenia!'; conn.classList.add('is-bad'); }
+      if (conn) { conn.textContent = '⚠ bez spojenia'; conn.classList.add('is-bad'); }
     });
   }
 
@@ -303,7 +422,10 @@
       if (st === 'cancelled' && !confirm('Naozaj zrušiť objednávku č. ' + btn.getAttribute('data-no') + '?')) return;
       btn.classList.add('is-busy');
       post('status', { id: btn.getAttribute('data-id'), status: st })
-        .then(function () { return poll(); })
+        .then(function () {
+          toast('Objednávka č. ' + btn.getAttribute('data-no') + ': ' + STATUS[st], st !== 'cancelled');
+          return poll();
+        })
         .catch(function () { btn.classList.remove('is-busy'); alert('Stav sa nepodarilo zmeniť. Skontrolujte pripojenie.'); });
     });
 
@@ -329,10 +451,12 @@
     if (tog) {
       tog.addEventListener('change', function () {
         var on = tog.checked;
-        $('[data-ordering-label]').textContent = on ? 'Prijímame' : 'Pozastavené';
-        post('ordering', { enabled: on ? '1' : '0' }).catch(function () {
+        paintOrdering(on);
+        post('ordering', { enabled: on ? '1' : '0' }).then(function () {
+          toast(on ? 'Online objednávky zapnuté' : 'Online objednávky pozastavené', on);
+        }).catch(function () {
           tog.checked = !on;
-          $('[data-ordering-label]').textContent = !on ? 'Prijímame' : 'Pozastavené';
+          paintOrdering(!on);
           alert('Nastavenie sa nepodarilo uložiť.');
         });
       });

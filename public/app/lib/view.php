@@ -89,7 +89,7 @@ function page_end(): void
     $state = open_state();
     ?>
 </main>
-<div class="band" aria-hidden="true"><div class="band-in">VŽDY SVIEŽE KAŽDÝ DEŇ · ALWAYS FRESH EVERYDAY · VŽDY SVIEŽE KAŽDÝ DEŇ · ALWAYS FRESH EVERYDAY</div></div>
+<?php brand_band(); ?>
 <footer class="ftr">
   <div class="wrap ftr-grid">
     <div class="ftr-brand">
@@ -128,6 +128,19 @@ function page_end(): void
 </body>
 </html>
 <?php
+}
+
+/** "Vždy svieže každý deň · Always fresh everyday" strip, scrolling left→right (decorative). */
+function brand_band(string $extraClass = ''): void
+{
+    $item = static fn (string $t) => '<span class="band-item">' . $t . '<svg class="band-ico" aria-hidden="true"><use href="#i-slice"/></svg></span>';
+    $group = '';
+    for ($i = 0; $i < 5; $i++) {
+        $group .= $item('VŽDY SVIEŽE KAŽDÝ DEŇ') . $item('ALWAYS FRESH EVERYDAY');
+    }
+    // two identical halves → seamless loop
+    echo '<div class="band ' . e($extraClass) . '" aria-hidden="true"><div class="band-track">'
+        . '<div class="band-group">' . $group . '</div><div class="band-group">' . $group . '</div></div></div>';
 }
 
 /** Slim bar linking to the visitor's own running order (from the ps_track cookie). */

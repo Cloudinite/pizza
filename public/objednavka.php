@@ -47,8 +47,13 @@ page_start([
 ?>
 <section class="wrap confirm">
   <div class="card confirm-card" data-order data-code="<?= e($order['code']) ?>" data-token="<?= e($token) ?>" data-status="<?= e($status) ?>">
-    <p class="eyebrow">Ďakujeme za objednávku</p>
-    <h1>Objednávka č. <span class="order-no"><?= (int) $order['daily_no'] ?></span></h1>
+    <div class="order-ok">
+      <span class="ok-badge" aria-hidden="true"><svg viewBox="0 0 52 52"><path d="M14 27l8 8 16-17"/></svg></span>
+      <div>
+        <p class="eyebrow">Ďakujeme za objednávku</p>
+        <h1>Objednávka č. <span class="order-no"><?= (int) $order['daily_no'] ?></span></h1>
+      </div>
+    </div>
     <p class="order-code">Kód #<?= e($order['code']) ?> · <?= e(date('j. n. Y H:i', strtotime($order['created_at']))) ?> · <?= $delivery ? 'Donáška' : 'Osobný odber' ?></p>
 
     <p class="status-text" data-status-text aria-live="polite"><?= e(order_status_text($status, $order['fulfillment'])) ?></p>

@@ -1,7 +1,7 @@
 /* Pizza Slice admin – service worker.
    Makes the admin installable and gives it an offline screen. Orders and all API calls
    always go to the network (never cached), so staff never see stale orders. */
-const CACHE = 'ps-admin-v1';
+const CACHE = 'ps-admin-v2';
 const SHELL = ['/admin/offline.html', '/admin/assets/admin.css', '/admin/assets/icon-192.png', '/assets/img/logo-104.webp', '/assets/fonts/pjs-sk.woff2'];
 
 self.addEventListener('install', (event) => {

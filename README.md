@@ -11,6 +11,7 @@ It's plain PHP + MariaDB with no frameworks or build step, made for **WebSupport
 | **Order tracking** (`/objednavka/…`) | The customer gets a private link, valid for **24 h**, with a live timeline: Prijatá → Pripravujeme → Pripravená → Na ceste → Doručená (pickup: … → Na vyzdvihnutie → Vyzdvihnutá). A "Sledovať stav" bar on the website takes them back to it. |
 | **Admin app** (`/admin/`) | Installable on Android and iPhone. New orders appear on their own, with a sound, vibration and a notification. Each order shows the price, address (with a **Navigate** button), a tap-to-call phone number, and the pizzas with their toppings. One big button moves the order to its next step, all the way to **Delivered / Done**. |
 | **Menu management** (`/admin/menu.php`) | Add, edit or delete items. Set prices, descriptions and photos, and switch items to *sold out* with one tap. Add the current **specialty**, edit toppings and their prices, and manage categories. |
+| **Look** | Light or dark mode (or follow the phone), chosen per device under *Nastavenia → Vzhľad aplikácie* or with the ☀/🌙 button in the top bar. |
 | **Settings** (`/admin/settings.php`) | Opening hours (default daily 10:00–21:00), a pause switch for online orders, a banner message, delivery fee and area, address, phone, social links, company details for the GDPR page, and password. |
 | **Legal** | `/ochrana-osobnych-udajov` (GDPR privacy policy) and `/cookies` (cookie policy). Only strictly necessary cookies are used, so no consent banner is needed. |
 
@@ -66,9 +67,22 @@ You stay logged in for 30 days. Changing the password logs out every other devic
 
 The privacy and cookie texts are a solid template for a small Slovak food business, but have them reviewed for your specific company.
 
+## Look & motion
+- Warm, low-glare colours: a soft off-white page with warm near-black text instead of pure white/black. It still passes WCAG AA contrast.
+- The "Vždy svieže každý deň · Always fresh everyday" strip scrolls left to right under the hero and above the footer. It pauses on hover.
+- Smooth motion:
+  - page cross-fades
+  - cards glide in as you scroll
+  - the category bar sticks and follows your position
+  - the toppings sheet slides up
+  - a slice flies into the cart
+  - the tracking page's live step pulses
+  - in the admin app, order cards glide into place instead of jumping
+- All animations use only transform/opacity and turn off automatically when the phone's *Reduce motion* setting is on.
+
 ## Speed, stability & SEO
 - About 5 KB of HTML + 7 KB of CSS + 4 KB of JS (gzipped). There's one self-hosted font subset (26 KB, with Slovak diacritics). No frameworks, no third-party requests. Pages render on the server in about 2 ms.
-- **The layout never moves.** Every image has fixed dimensions, and the font uses `font-display: optional`. Buttons keep their size when pressed, and the cart bar, toppings sheet and toasts float over the page. The measured Cumulative Layout Shift is 0 on the menu, checkout and tracking pages.
+- **The layout never moves.** Every image has fixed dimensions, and the font uses `font-display: optional` with a size-matched fallback font. If the web font is slow, the phone's own font takes up the same space, so text doesn't re-wrap between pages. Buttons keep their size when pressed, and the cart bar, toppings sheet and toasts float over the page. The measured Cumulative Layout Shift is 0 on the menu, checkout and tracking pages.
 - Touch targets are at least 44 px. The site has proper `<button>`s with Slovak labels, a skip link and visible focus outlines, and it works without JavaScript too.
 - **Crawlable:** all content is rendered on the server. It includes `schema.org` Restaurant and Menu data (JSON-LD), Open Graph tags, canonical URLs, `/sitemap.xml` and `/robots.txt`.
 

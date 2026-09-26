@@ -78,14 +78,18 @@ function add_control(array $it, int $qty): void
     <?php elseif ($state['message'] !== ''): ?>
       <p class="notice" role="status"><?= e($state['message']) ?></p>
     <?php endif; ?>
-    <nav class="chips" aria-label="Kategórie menu">
+  </div>
+</section>
+<nav class="chips-bar" aria-label="Kategórie menu">
+  <div class="wrap">
+    <div class="chips" data-chips>
       <?php foreach ($menu['categories'] as $c): if (!$c['items']) { continue; } ?>
         <a href="#<?= e($c['slug']) ?>"><?= e($c['name']) ?></a>
       <?php endforeach; ?>
       <?php if ($menu['toppings']): ?><a href="#prilohy">Prílohy</a><?php endif; ?>
-    </nav>
+    </div>
   </div>
-</section>
+</nav>
 
 <?php foreach ($menu['categories'] as $c): if (!$c['items']) { continue; } ?>
 <section class="cat" id="<?= e($c['slug']) ?>" aria-labelledby="h-<?= e($c['slug']) ?>">

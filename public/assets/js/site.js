@@ -15,6 +15,51 @@
   function money(c) { return (c / 100).toFixed(2).replace('.', ',') + ' €'; }
   function plural(n, one, few, many) { return n === 1 ? one : (n >= 2 && n <= 4 ? few : many); }
 
+  /* ---------- motion helpers (transform/opacity only → never moves the layout) ---------- */
+  var reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var EASE = 'cubic-bezier(.22, 1, .36, 1)';
+  var SPRING = 'cubic-bezier(.34, 1.56, .64, 1)';
+  function anim(el, frames, opts) {
+    if (reduced || !el || !el.animate) return null;
+    return el.animate(frames, opts);
+  }
+  function bump(el) { anim(el, [{ transform: 'scale(1)' }, { transform: 'scale(1.35)' }, { transform: 'scale(1)' }], { duration: 420, easing: SPRING }); }
+  function popIn(el) { anim(el, [{ opacity: 0, transform: 'scale(.92)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: EASE }); }
+  function visible(el) { if (!el) return false; var r = el.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < innerHeight; }
+
+  /* a little pizza slice (or cup) flies from the button into the cart */
+  function flyToCart(fromEl, icon) {
+    var target = [$('[data-cart-go]'), $('[data-cart-link]')].filter(visible)[0];
+    if (reduced || !fromEl || !target || !document.body.animate) return;
+    var a = fromEl.getBoundingClientRect();
+    var b = target.getBoundingClientRect();
+    var x0 = a.left + a.width / 2 - 19, y0 = a.top + a.height / 2 - 19;
+    var x1 = b.left + b.width / 2 - 19, y1 = b.top + b.height / 2 - 19;
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('class', 'fly');
+    svg.setAttribute('aria-hidden', 'true');
+    var use = document.createElementNS(ns, 'use');
+    use.setAttribute('href', '#i-' + (icon || 'slice'));
+    svg.appendChild(use);
+    document.body.appendChild(svg);
+    var midX = (x0 + x1) / 2, midY = Math.min(y0, y1) - 90;
+    svg.animate([
+      { transform: 'translate(' + x0 + 'px,' + y0 + 'px) scale(.6) rotate(0deg)', opacity: 0 },
+      { transform: 'translate(' + x0 + 'px,' + (y0 - 20) + 'px) scale(1.1) rotate(-20deg)', opacity: 1, offset: .15 },
+      { transform: 'translate(' + midX + 'px,' + midY + 'px) scale(1) rotate(120deg)', opacity: 1, offset: .55 },
+      { transform: 'translate(' + x1 + 'px,' + y1 + 'px) scale(.35) rotate(300deg)', opacity: .4 }
+    ], { duration: 720, easing: 'cubic-bezier(.45, 0, .25, 1)' }).onfinish = function () {
+      svg.remove();
+      bump(target);
+    };
+  }
+  function iconFor(el) {
+    var item = el && el.closest('.item');
+    var ico = item && item.querySelector('.thumb use');
+    return ico ? ico.getAttribute('href').replace('#i-', '') : 'slice';
+  }
+
   /* ---------- cart cookie ---------- */
   function readCart() {
     var m = document.cookie.match(/(?:^|;\s*)ps_cart=([^;]*)/);
@@ -70,13 +115,17 @@
   }
 
   /* ---------- shared UI ---------- */
+  var lastCount = null;
   function refreshCartUI(lines) {
     var n = count(lines);
-    $$('[data-cart-count]').forEach(function (b) { b.textContent = n; b.hidden = n === 0; });
+    var grew = lastCount !== null && n > lastCount;
+    lastCount = n;
+    $$('[data-cart-count]').forEach(function (b) { b.textContent = n; b.hidden = n === 0; if (grew) setTimeout(function () { bump(b); }, 650); });
     $$('[data-cart-link]').forEach(function (a) { a.setAttribute('aria-label', 'Košík – ' + n + ' ks'); });
     var total = $('[data-cart-total]');
     if (total && DATA) {
-      total.textContent = money(subtotal(lines));
+      var newTotal = money(subtotal(lines));
+      if (total.textContent !== newTotal) { total.textContent = newTotal; bump(total); }
       $('[data-cart-items]').textContent = n + ' ' + plural(n, 'položka', 'položky', 'položiek') + ' v košíku';
       var go = $('[data-cart-go]');
       go.classList.toggle('is-disabled', n === 0);
@@ -99,12 +148,15 @@
     var l = readCart().filter(function (x) { return x.id === id && x.tops.length === 0; })[0];
     return l ? l.qty : 0;
   }
-  function syncStepper(form) {
+  function syncStepper(form, animate) {
     var id = +form.getAttribute('data-id');
     var q = plainQty(id);
-    $('[data-add-plain]', form).hidden = q > 0;
-    $('[data-stepper]', form).hidden = q === 0;
-    $('[data-qty-out]', form).textContent = q;
+    var add = $('[data-add-plain]', form), step = $('[data-stepper]', form), out = $('[data-qty-out]', form);
+    var swapped = add.hidden !== (q > 0);
+    add.hidden = q > 0;
+    step.hidden = q === 0;
+    if (out.textContent !== String(q)) { out.textContent = q; if (animate && !swapped) bump(out); }
+    if (animate && swapped) popIn(q > 0 ? step : add);
   }
 
   function initMenu() {
@@ -141,8 +193,12 @@
         var btn = e.submitter || document.activeElement;
         if (!btn || btn.value !== 'add' || !current) return;
         var tops = $$('input[name="t"]:checked', dlg).map(function (i) { return +i.value; });
+        var from = $('.dlg-add', dlg).getBoundingClientRect();
         addLine(current, qty, tops);
         toast('Pridané do košíka: ' + qty + '× ' + DATA.items[current].n);
+        // fly from where the add button was, once the sheet is out of the way
+        var ghost = { getBoundingClientRect: function () { return from; } };
+        setTimeout(function () { flyToCart(ghost, 'slice'); }, 180);
       });
       // tap on the dimmed backdrop closes the sheet
       dlg.addEventListener('click', function (e) { if (e.target === dlg) dlg.close('cancel'); });
@@ -153,7 +209,7 @@
         e.preventDefault();
         var id = +f.getAttribute('data-id');
         if (DATA.items[id] && DATA.items[id].t && Object.keys(DATA.toppings).length && dlg) openDialog(id);
-        else { addLine(id, 1, []); toast('Pridané do košíka'); }
+        else { var b = $('button', f); addLine(id, 1, []); toast('Pridané do košíka'); flyToCart(b, iconFor(b)); }
       });
     });
 
@@ -163,9 +219,10 @@
         e.preventDefault();
         var btn = e.submitter || document.activeElement;
         var op = btn && btn.value ? btn.value.split('|')[0] : 'add';
+        if (op === 'add' || op === 'inc') flyToCart(btn, iconFor(f));
         if (op === 'add') addLine(id, 1, []);
         else changeLine(id + ':', op);
-        syncStepper(f);
+        syncStepper(f, true);
         // keep keyboard focus inside the control when the button swaps
         var target = op === 'add' || plainQty(id) > 0 ? $('[data-inc]', f) : $('[data-add-plain]', f);
         if (btn && btn === document.activeElement && target) target.focus({ preventScroll: true });
@@ -174,9 +231,29 @@
 
     // cookie may have changed in another tab / via back-forward cache
     window.addEventListener('pageshow', function () {
-      $$('form[data-qty]').forEach(syncStepper);
+      $$('form[data-qty]').forEach(function (f) { syncStepper(f, false); });
       refreshCartUI(readCart());
     });
+
+    // category chips follow the scroll position
+    var chips = $('[data-chips]');
+    if (chips && 'IntersectionObserver' in window) {
+      var links = $$('a', chips);
+      var byId = {};
+      links.forEach(function (a) { byId[a.getAttribute('href').slice(1)] = a; });
+      var setActive = function (id) {
+        var a = byId[id];
+        if (!a || a.getAttribute('aria-current') === 'true') return;
+        links.forEach(function (x) { x.removeAttribute('aria-current'); });
+        a.setAttribute('aria-current', 'true');
+        var left = a.offsetLeft - chips.clientWidth / 2 + a.offsetWidth / 2;
+        chips.scrollTo({ left: Math.max(0, left), behavior: reduced ? 'auto' : 'smooth' });
+      };
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (en) { if (en.isIntersecting) setActive(en.target.id); });
+      }, { rootMargin: '-30% 0px -60% 0px' });
+      Object.keys(byId).forEach(function (id) { var sec = document.getElementById(id); if (sec) io.observe(sec); });
+    }
   }
 
   /* ---------- checkout ---------- */
@@ -206,10 +283,21 @@
       var line = lines.filter(function (l) { return keyOf(l) === parts[1]; })[0];
       if (!line) {
         var next = li.nextElementSibling || li.previousElementSibling;
-        li.remove();
-        if (next) { var b = next.querySelector('.line-del'); if (b) b.focus({ preventScroll: true }); }
+        var done = function () {
+          li.remove();
+          if (next) { var b = next.querySelector('.line-del'); if (b) b.focus({ preventScroll: true }); }
+        };
+        // fold the row away smoothly instead of letting everything below jump up
+        var h = li.offsetHeight;
+        li.style.overflow = 'hidden';
+        var a = anim(li, [
+          { opacity: 1, height: h + 'px', paddingTop: '14px', paddingBottom: '14px' },
+          { opacity: 0, height: '0px', paddingTop: '0px', paddingBottom: '0px' }
+        ], { duration: 260, easing: EASE });
+        if (a) a.onfinish = done; else done();
       } else {
         $('[data-line-qty]', li).textContent = line.qty;
+        bump($('[data-line-qty]', li));
         $('[data-line-total]', li).textContent = money(unitPrice(line) * line.qty);
       }
       totals();
@@ -251,6 +339,7 @@
       $('[data-status-text]', box).textContent = text;
       var prog = $('[data-progress]', box);
       var steps = $$('li', prog);
+      anim($('[data-status-text]', box), [{ backgroundColor: '#f7c9c3' }, { backgroundColor: '#fcebe7' }], { duration: 1200, easing: 'ease-out' });
       var idx = steps.map(function (li) { return li.getAttribute('data-step'); }).indexOf(st);
       prog.classList.toggle('is-cancelled', st === 'cancelled');
       steps.forEach(function (li, i) {

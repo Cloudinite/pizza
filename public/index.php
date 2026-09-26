@@ -52,6 +52,7 @@ page_start([
     </div>
   </div>
 </section>
+<?php brand_band('band-hero'); ?>
 
 <?php if ($specials): ?>
 <section class="section special" aria-labelledby="special-h">
