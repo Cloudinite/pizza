@@ -1,9 +1,8 @@
 <?php
-require dirname(__DIR__) . '/app/admin_bootstrap.php';
+defined('PS_APP') || exit;
 
 $user = require_admin();
 $errors = [];
-$pwErrors = [];
 
 /** <option>s every 15 minutes (plus the stored value if it is off-grid). */
 function time_options(string $selected): string
@@ -79,24 +78,7 @@ if (is_post()) {
         $new['hours'] = json_encode($hours);
         if (!$errors) {
             save_settings($new);
-            redirect('/admin/settings.php?ok=saved');
-        }
-    } elseif ($action === 'password') {
-        $st = db()->prepare('SELECT password_hash FROM admin_users WHERE id = ?');
-        $st->execute([$user['id']]);
-        $hash = (string) $st->fetchColumn();
-        $current = (string) ($_POST['current'] ?? '');
-        $pw = (string) ($_POST['new'] ?? '');
-        if (!password_verify($current, $hash)) {
-            $pwErrors[] = 'Aktuálne heslo nie je správne.';
-        } elseif (strlen($pw) < 10) {
-            $pwErrors[] = 'Nové heslo musí mať aspoň 10 znakov.';
-        } elseif ($pw !== (string) ($_POST['new2'] ?? '')) {
-            $pwErrors[] = 'Nové heslá sa nezhodujú.';
-        } else {
-            db()->prepare('UPDATE admin_users SET password_hash = ? WHERE id = ?')->execute([password_hash($pw, PASSWORD_DEFAULT), $user['id']]);
-            db()->prepare('DELETE FROM admin_sessions WHERE user_id = ? AND selector <> ?')->execute([$user['id'], $user['selector']]);
-            redirect('/admin/settings.php?ok=password');
+            redirect(admin_url('nastavenia') . '?ok=saved');
         }
     }
 }
@@ -117,7 +99,14 @@ admin_start('Nastavenia', 'settings');
 <?php
 $couponCount = (int) db()->query('SELECT COUNT(*) FROM coupons WHERE is_active = 1')->fetchColumn();
 ?>
-<a class="a-card a-link-card" href="/admin/coupons.php">
+<?php $me = admin_user_row($user['id']); ?>
+<a class="a-card a-link-card" href="<?= e(admin_url('zabezpecenie')) ?>">
+  <span class="a-link-ico a-link-ico-sec" aria-hidden="true">🔐</span>
+  <span><b>Zabezpečenie a prihlásenie</b><small>Heslo, overenie v 2 krokoch (<?= (int) ($me['totp_enabled'] ?? 0) ? 'zapnuté' : 'vypnuté' ?>), zariadenia, tajná adresa</small></span>
+  <span class="a-link-arrow" aria-hidden="true">›</span>
+</a>
+
+<a class="a-card a-link-card" href="<?= e(admin_url('kupony')) ?>">
   <span class="a-link-ico" aria-hidden="true">🎟️</span>
   <span><b>Zľavové kupóny</b><small><?= $couponCount ? $couponCount . ' ' . plural($couponCount, 'aktívny kupón', 'aktívne kupóny', 'aktívnych kupónov') : 'Vytvorte kód na zľavu, napr. PIZZA10' ?></small></span>
   <span class="a-link-arrow" aria-hidden="true">›</span>
@@ -212,21 +201,7 @@ $couponCount = (int) db()->query('SELECT COUNT(*) FROM coupons WHERE is_active =
   </div>
 </form>
 
-<section class="a-card" id="password">
-  <h2>Zmena hesla</h2>
-  <?php foreach ($pwErrors as $err): ?><p class="a-err" role="alert"><?= e($err) ?></p><?php endforeach; ?>
-  <form method="post" class="a-form">
-    <?= admin_csrf_field() ?>
-    <input type="hidden" name="action" value="password">
-    <input type="text" name="username" value="<?= e($user['username']) ?>" autocomplete="username" hidden>
-    <label class="a-field"><span>Aktuálne heslo</span><input class="a-input" type="password" name="current" autocomplete="current-password" required></label>
-    <label class="a-field"><span>Nové heslo (min. 10 znakov)</span><input class="a-input" type="password" name="new" minlength="10" autocomplete="new-password" required></label>
-    <label class="a-field"><span>Nové heslo znova</span><input class="a-input" type="password" name="new2" minlength="10" autocomplete="new-password" required></label>
-    <button class="a-btn" type="submit">Zmeniť heslo</button>
-  </form>
-</section>
-
-<form method="post" action="/admin/logout.php" class="a-logout">
+<form method="post" action="<?= e(admin_url('odhlasenie')) ?>" class="a-logout">
   <?= admin_csrf_field() ?>
   <p class="a-muted">Prihlásený ako <b><?= e($user['username']) ?></b></p>
   <button class="a-btn a-btn-danger a-btn-block" type="submit">Odhlásiť sa</button>

@@ -10,6 +10,7 @@ define('PS_APPDIR', __DIR__);
 
 // Buffer output so headers/cookies set later in a request are never lost.
 ob_start();
+header_remove('X-Powered-By'); // do not advertise the PHP version
 
 date_default_timezone_set('Europe/Bratislava');
 mb_internal_encoding('UTF-8');
@@ -31,6 +32,8 @@ require __DIR__ . '/lib/hours.php';
 require __DIR__ . '/lib/menu.php';
 require __DIR__ . '/lib/orders.php';
 require __DIR__ . '/lib/coupons.php';
+require __DIR__ . '/lib/admin_path.php';
+require __DIR__ . '/lib/totp.php';
 require __DIR__ . '/lib/view.php';
 
 set_exception_handler(static function (Throwable $e): void {

@@ -9,6 +9,8 @@
   var csrfMeta = $('meta[name="csrf-token"]');
   var CSRF = csrfMeta ? csrfMeta.content : '';
   var PAGE = document.body.getAttribute('data-page');
+  var baseMeta = $('meta[name="admin-base"]');
+  var BASE = baseMeta ? baseMeta.content : location.pathname.replace(/[^/]*$/, ''); // secret admin address
   var store = {
     get: function (k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
     set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
@@ -16,12 +18,46 @@
   // preferences go into cookies so the server can draw buttons/theme in their final state (no jumps, no flash)
   function getPref(k) { var m = document.cookie.match(new RegExp('(?:^|;\\s*)' + k + '=([^;]*)')); return m ? m[1] : null; }
   function setPref(k, v) {
-    document.cookie = k + '=' + v + '; Path=/admin/; Max-Age=31536000; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
+    document.cookie = k + '=' + v + '; Path=/; Max-Age=31536000; SameSite=Lax' + (location.protocol === 'https:' ? '; Secure' : '');
   }
   var html = document.documentElement;
   var reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
   var EASE = 'cubic-bezier(.22, 1, .36, 1)';
   function anim(el, frames, opts) { return (!reduced && el && el.animate) ? el.animate(frames, opts) : null; }
+
+  /* ---------- ripple: a soft circle spreads from the finger on every button (transform/opacity only) ---------- */
+  var RIPPLE = '.a-btn, .a-chip, .a-seg button, .a-refresh, .a-tabs a, .a-theme-btn, .a-icon-btn, .a-link-card, .a-pass-toggle';
+  document.addEventListener('pointerdown', function (e) {
+    if (reduced || e.button > 0) return;
+    var host = e.target.closest && e.target.closest(RIPPLE);
+    if (!host || host.disabled || !host.animate) return;
+    var r = host.getBoundingClientRect();
+    var x = e.clientX - r.left, y = e.clientY - r.top;
+    var size = 2 * Math.hypot(Math.max(x, r.width - x), Math.max(y, r.height - y));
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    host.classList.add('rpl-host');
+    var wrap = document.createElement('span');
+    wrap.className = 'rpl';
+    wrap.setAttribute('aria-hidden', 'true');
+    var dot = document.createElement('i');
+    dot.style.width = dot.style.height = size + 'px';
+    dot.style.left = (x - size / 2) + 'px';
+    dot.style.top = (y - size / 2) + 'px';
+    wrap.appendChild(dot);
+    host.appendChild(wrap);
+    var a = dot.animate([{ transform: 'scale(0)', opacity: 0.28 }, { transform: 'scale(1)', opacity: 0 }], { duration: 600, easing: EASE });
+    a.onfinish = function () { wrap.remove(); };
+  }, { passive: true });
+
+  /* ---------- forms: the submit button shimmers while the page is being saved ---------- */
+  document.addEventListener('submit', function (e) {
+    if (e.defaultPrevented) return;
+    var btn = e.submitter || (e.target.querySelector && e.target.querySelector('[type="submit"]'));
+    if (btn && btn.classList.contains('a-btn')) setTimeout(function () { btn.classList.add('is-busy'); }, 0);
+  });
+  window.addEventListener('pageshow', function (e) {
+    if (e.persisted) $$('.a-btn.is-busy').forEach(function (b) { b.classList.remove('is-busy'); });
+  });
 
   /* ---------- toast (floating, never moves the page) ---------- */
   var toastEl = $('[data-toast]');
@@ -92,24 +128,24 @@
     var body = new FormData();
     body.append('action', action);
     Object.keys(data || {}).forEach(function (k) { body.append(k, data[k]); });
-    return fetch('/admin/api.php', { method: 'POST', body: body, credentials: 'same-origin', headers: { 'X-CSRF-Token': CSRF } })
+    return fetch(BASE + 'api', { method: 'POST', body: body, credentials: 'same-origin', headers: { 'X-CSRF-Token': CSRF } })
       .then(function (r) {
-        if (r.status === 401) { location.href = '/admin/login.php'; throw new Error('auth'); }
+        if (r.status === 401) { location.href = BASE + 'prihlasenie'; throw new Error('auth'); }
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();
       });
   }
   function get(params) {
-    return fetch('/admin/api.php?' + params, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
-      if (r.status === 401) { location.href = '/admin/login.php'; throw new Error('auth'); }
+    return fetch(BASE + 'api?' + params, { credentials: 'same-origin', cache: 'no-store' }).then(function (r) {
+      if (r.status === 401) { location.href = BASE + 'prihlasenie'; throw new Error('auth'); }
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
     });
   }
 
   /* ---------- PWA: service worker + install ---------- */
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('/admin/sw.js', { scope: '/admin/' }).catch(function () {});
+  if ('serviceWorker' in navigator && baseMeta) { // not on the one-time /admin/ door
+    navigator.serviceWorker.register(BASE + 'sw.js', { scope: BASE }).catch(function () {});
   }
   var installEvt = null;
   window.addEventListener('beforeinstallprompt', function (e) {
@@ -237,8 +273,8 @@
         body: o.count + ' ks · ' + money(o.total),
         tag: 'order-' + o.id,
         renotify: true,
-        icon: '/admin/assets/icon-192.png',
-        badge: '/admin/assets/icon-192.png',
+        icon: BASE + 'assets/icon-192.png',
+        badge: BASE + 'assets/icon-192.png',
         vibrate: [250, 120, 250]
       });
     }).catch(function () {});
@@ -380,7 +416,14 @@
     var rects = {};
     Object.keys(before).forEach(function (id) { rects[id] = before[id].getBoundingClientRect(); });
     board.innerHTML = markup;
-    if (first || reduced) return;
+    if (reduced) return;
+    if (first) {
+      // first paint: the cards deal in one after another
+      $$('.o-card', board).forEach(function (c, i) {
+        anim(c, [{ opacity: 0, transform: 'translateY(14px)' }, { opacity: 1, transform: 'none' }], { duration: 420, delay: Math.min(i, 8) * 45, easing: EASE, fill: 'backwards' });
+      });
+      return;
+    }
     var now = {};
     $$('.o-card', board).forEach(function (c) {
       var id = c.getAttribute('data-oid');
@@ -489,6 +532,92 @@
         });
       });
     }
+  }
+
+  /* ---------- security page helpers ---------- */
+  // copy: the nearest [data-copy-src] in the same card
+  $$('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var box = btn.closest('.a-card, section, div');
+      var src = box && box.querySelector('[data-copy-src]');
+      if (!src) return;
+      var text = (src.innerText || src.textContent).trim();
+      var done = function () { toast('Skopírované', true); };
+      // older phones / refused permission: select the text and use the classic copy command
+      var fallback = function () {
+        var r = document.createRange(); r.selectNodeContents(src);
+        var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+        var copied = false;
+        try { copied = document.execCommand('copy'); } catch (e) {}
+        if (copied) { sel.removeAllRanges(); done(); } else toast('Označené – podržte prst a zvoľte Kopírovať');
+      };
+      if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(text).then(done, fallback);
+      else fallback();
+    });
+  });
+  var genSlug = $('[data-gen-slug]');
+  if (genSlug) {
+    genSlug.addEventListener('click', function () {
+      var words = ['kuchyna', 'prevadzka', 'pult', 'pec', 'objednavky'];
+      var abc = 'abcdefghjkmnpqrstuvwxyz23456789';
+      var buf = new Uint32Array(11);
+      crypto.getRandomValues(buf);
+      var s = words[buf[0] % words.length] + '-';
+      for (var i = 1; i < buf.length; i++) s += abc[buf[i] % abc.length];
+      var input = $('[data-slug-input]');
+      input.value = s;
+      anim(input, [{ backgroundColor: 'rgba(242,169,0,.35)' }, { backgroundColor: 'transparent' }], { duration: 700 });
+    });
+  }
+  // QR code for the authenticator app, drawn as SVG with DOM calls (no inline styles → CSP-safe)
+  document.addEventListener('DOMContentLoaded', function () {
+    var box = $('[data-qr]');
+    if (!box || typeof window.qrcode !== 'function') return;
+    var qr = window.qrcode(0, 'M');
+    qr.addData(box.getAttribute('data-qr'));
+    qr.make();
+    var n = qr.getModuleCount(), pad = 4, size = n + pad * 2;
+    var ns = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(ns, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + size + ' ' + size);
+    svg.setAttribute('shape-rendering', 'crispEdges');
+    var bg = document.createElementNS(ns, 'rect');
+    bg.setAttribute('width', size); bg.setAttribute('height', size); bg.setAttribute('fill', '#fff');
+    svg.appendChild(bg);
+    var d = '';
+    for (var r = 0; r < n; r++) for (var c = 0; c < n; c++) if (qr.isDark(r, c)) d += 'M' + (c + pad) + ' ' + (r + pad) + 'h1v1h-1z';
+    var path = document.createElementNS(ns, 'path');
+    path.setAttribute('d', d); path.setAttribute('fill', '#111');
+    svg.appendChild(path);
+    box.appendChild(svg);
+    anim(box, [{ opacity: 0, transform: 'scale(.9)' }, { opacity: 1, transform: 'none' }], { duration: 400, easing: EASE });
+  });
+
+  /* ---------- login: show password, Caps Lock hint, shake on error ---------- */
+  var pwToggle = $('[data-pass-toggle]');
+  var pw = $('[data-password]');
+  if (pwToggle && pw) {
+    pwToggle.addEventListener('click', function () {
+      var show = pw.type === 'password';
+      pw.type = show ? 'text' : 'password';
+      pwToggle.setAttribute('aria-pressed', show ? 'true' : 'false');
+      pwToggle.setAttribute('aria-label', show ? 'Skryť heslo' : 'Zobraziť heslo');
+      pw.focus({ preventScroll: true });
+    });
+    var caps = $('[data-caps]');
+    var capsCheck = function (e) { if (caps && e.getModifierState) caps.classList.toggle('is-on', e.getModifierState('CapsLock')); };
+    pw.addEventListener('keydown', capsCheck);
+    pw.addEventListener('keyup', capsCheck);
+  }
+  var loginBox = $('.a-login.has-error form');
+  if (loginBox) anim(loginBox, [{ transform: 'translateX(0)' }, { transform: 'translateX(-8px)' }, { transform: 'translateX(8px)' }, { transform: 'translateX(-4px)' }, { transform: 'translateX(0)' }], { duration: 380, delay: 150 });
+  // 2FA code: keep only digits / backup-code characters, submit when 6 digits are in
+  var codeField = $('.a-login .a-code-field');
+  if (codeField) {
+    codeField.addEventListener('input', function () {
+      var v = codeField.value.replace(/\s/g, '');
+      if (/^\d{6}$/.test(v)) codeField.form.requestSubmit ? codeField.form.requestSubmit() : codeField.form.submit();
+    });
   }
 
   if (CSRF && PAGE !== 'login') { poll(); schedule(); }

@@ -2,7 +2,7 @@
 defined('PS_APP') || exit;
 
 /** Bump when a migration is added below; existing databases upgrade themselves on the next request. */
-const PS_SCHEMA_VERSION = 2;
+const PS_SCHEMA_VERSION = 3;
 
 function db(): PDO
 {
@@ -59,6 +59,26 @@ function db_migrate(PDO $pdo, int $from): void
             } catch (PDOException $e) {
                 if (($e->errorInfo[1] ?? 0) !== 1060) { // 1060 = column already added by a parallel request
                     throw $e;
+                }
+            }
+        }
+    }
+    if ($from < 3) {
+        // two-factor login for the admin account
+        $add = [
+            'totp_secret_enc' => 'TEXT NULL',
+            'totp_enabled' => 'TINYINT(1) NOT NULL DEFAULT 0',
+            'totp_last_step' => 'BIGINT NULL',
+            'backup_codes' => 'TEXT NULL',
+        ];
+        foreach ($add as $col => $def) {
+            if (!$pdo->query("SHOW COLUMNS FROM admin_users LIKE '$col'")->fetch()) {
+                try {
+                    $pdo->exec("ALTER TABLE admin_users ADD COLUMN $col $def");
+                } catch (PDOException $e) {
+                    if (($e->errorInfo[1] ?? 0) !== 1060) {
+                        throw $e;
+                    }
                 }
             }
         }

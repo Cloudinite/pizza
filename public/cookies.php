@@ -26,7 +26,8 @@ page_start([
           <tr><td><code>ps_coupon</code></td><td>Zľavový kód, ktorý ste zadali v košíku.</td><td>1 deň</td></tr>
           <tr><td><code>ps_track</code></td><td>Odkaz na sledovanie vašej poslednej objednávky (kód objednávky a tajný kľúč).</td><td>24 hodín</td></tr>
           <tr><td><code>ps_csrf</code></td><td>Bezpečnostný token, ktorý chráni objednávkový formulár pred podvrhnutím.</td><td>do zatvorenia prehliadača</td></tr>
-          <tr><td><code>ps_adm</code></td><td>Prihlásenie personálu do administrácie. Návštevníkov webu sa netýka.</td><td>30 dní</td></tr>
+          <tr><td><code>__Host-ps_admin</code></td><td>Prihlásenie personálu do administrácie. Návštevníkov webu sa netýka.</td><td>30 dní</td></tr>
+          <tr><td><code>ps_2fa</code></td><td>Krátkodobé potvrdenie prvého kroku prihlásenia personálu (overenie v dvoch krokoch).</td><td>5 minút</td></tr>
         </tbody>
       </table>
     </div>

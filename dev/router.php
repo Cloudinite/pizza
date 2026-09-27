@@ -11,10 +11,19 @@ if (PHP_SAPI !== 'cli-server') {
 $root = dirname(__DIR__) . '/public';
 $path = rawurldecode(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/');
 
-if (preg_match('#^/app(/|$)#', $path) || preg_match('#/\.#', $path) || preg_match('#\.(sql|md|lock|log)$#', $path)) {
+$notFound = static function () use ($root) {
     http_response_code(404);
     require $root . '/404.php';
     return true;
+};
+
+// private files → 404 (same rules as .htaccess)
+if (preg_match('#^/(app|dev|vendor|node_modules)(/|$)#i', $path)
+    || (preg_match('#(^|/)\.#', $path) && !str_starts_with($path, '/.well-known/'))
+    || preg_match('#\.(sql|md|lock|log|ini|sh|bak|dist|example|sample|swp|old|orig|tmp|env|zip|tar|gz|tgz|7z|rar|yml|yaml|inc|phar|phtml)$#i', $path)
+    || preg_match('#(~|\#)$#', $path)
+    || preg_match('#^/(assets|uploads)/(.*\.ph(p\d?|tml|ar))?$#i', $path)) {
+    return $notFound();
 }
 $routes = [
     '#^/menu/?$#' => '/menu.php',
@@ -36,8 +45,13 @@ if (preg_match('#^/objednavka/([A-Za-z0-9]{6})/?$#', $path, $m)) {
     require $root . '/objednavka.php';
     return true;
 }
+// the old /admin/ folder only holds a redirect-to-router .htaccess
+if (preg_match('#^/admin(/|$)#', $path)) {
+    require $root . '/route.php';
+    return true;
+}
 $file = $root . $path;
-if (is_dir($file)) {
+if (is_dir($file) && is_file(rtrim($file, '/') . '/index.php')) {
     $file = rtrim($file, '/') . '/index.php';
 }
 if (is_file($file)) {
@@ -46,13 +60,8 @@ if (is_file($file)) {
         require $file;
         return true;
     }
-    if (str_ends_with($file, '.webmanifest')) {
-        header('Content-Type: application/manifest+json');
-        readfile($file);
-        return true;
-    }
     return false; // let the built-in server send static files
 }
-http_response_code(404);
-require $root . '/404.php';
+// anything else → router (secret admin address or 404)
+require $root . '/route.php';
 return true;

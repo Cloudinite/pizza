@@ -1,8 +1,9 @@
 /* Pizza Slice admin – service worker.
    Makes the admin installable and gives it an offline screen. Orders and all API calls
    always go to the network (never cached), so staff never see stale orders. */
-const CACHE = 'ps-admin-v2';
-const SHELL = ['/admin/offline.html', '/admin/assets/admin.css', '/admin/assets/icon-192.png', '/assets/img/logo-104.webp', '/assets/fonts/pjs-sk.woff2'];
+const BASE = '__BASE__'; // secret admin address, filled in by sw.php
+const CACHE = 'ps-admin-v3';
+const SHELL = [BASE + 'offline', BASE + 'assets/admin.css', BASE + 'assets/icon-192.png', '/assets/img/logo-104.webp', '/assets/fonts/pjs-sk.woff2'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -24,11 +25,11 @@ self.addEventListener('fetch', (event) => {
 
   // Pages: network first, offline screen as fallback.
   if (req.mode === 'navigate') {
-    event.respondWith(fetch(req).catch(() => caches.match('/admin/offline.html')));
+    event.respondWith(fetch(req).catch(() => caches.match(BASE + 'offline')));
     return;
   }
   // Versioned static assets: cache first.
-  if (/^\/(admin\/assets|assets)\//.test(url.pathname)) {
+  if (url.pathname.startsWith(BASE + 'assets/') || url.pathname.startsWith('/assets/')) {
     event.respondWith(
       caches.match(req).then((hit) => hit || fetch(req).then((res) => {
         if (res.ok) {
@@ -56,9 +57,9 @@ self.addEventListener('notificationclick', (event) => {
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
       for (const c of list) {
-        if (c.url.includes('/admin/') && 'focus' in c) return c.focus();
+        if (c.url.includes(BASE) && 'focus' in c) return c.focus();
       }
-      return self.clients.openWindow('/admin/');
+      return self.clients.openWindow(BASE);
     })
   );
 });

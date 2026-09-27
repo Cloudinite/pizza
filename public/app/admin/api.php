@@ -1,6 +1,6 @@
 <?php
 /** JSON endpoints used by the admin app (orders polling, status changes, quick toggles). */
-require dirname(__DIR__) . '/app/admin_bootstrap.php';
+defined('PS_APP') || exit;
 
 header('X-Robots-Tag: noindex');
 require_admin(true);

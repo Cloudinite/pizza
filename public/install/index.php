@@ -5,6 +5,7 @@
  */
 define('PS_INSTALLER', true);
 require dirname(__DIR__) . '/app/bootstrap.php';
+require PS_APPDIR . '/lib/auth.php';
 
 send_security_headers();
 header('Content-Type: text/html; charset=utf-8');
@@ -15,6 +16,7 @@ $configFile = PS_APPDIR . '/config.php';
 $hasConfig = is_file($configFile);
 $errors = [];
 $done = false;
+$adminUrl = '';
 $manualConfig = null;
 
 // Installer CSRF: plain double-submit cookie (no app key exists yet).
@@ -34,12 +36,8 @@ function admin_exists(): bool
 }
 
 if ($hasConfig && admin_exists()) {
-    http_response_code(403);
-    echo '<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Inštalácia</title>'
-        . '<link rel="stylesheet" href="' . e(asset('/assets/css/site.css')) . '"><main class="wrap confirm"><div class="card confirm-card">'
-        . '<h1>Inštalácia je hotová</h1><p>Web je nainštalovaný. Z bezpečnostných dôvodov môžete priečinok <code>install</code> zo servera zmazať.</p>'
-        . '<div class="card-actions"><a class="btn btn-primary" href="/admin/">Administrácia</a><a class="btn btn-ghost" href="/">Web</a></div></div></main>';
-    exit;
+    // Installed: the installer no longer exists as far as the outside world can tell.
+    not_found();
 }
 
 $v = [
@@ -61,8 +59,8 @@ if (is_post()) {
     if (!preg_match('/^[a-zA-Z0-9._-]{3,50}$/', $v['username'])) {
         $errors[] = 'Prihlasovacie meno: 3–50 znakov (písmená, čísla, bodka, pomlčka).';
     }
-    if (strlen($pass) < 10) {
-        $errors[] = 'Heslo musí mať aspoň 10 znakov.';
+    if (($why = ps_password_problem($pass, $v['username'])) !== '') {
+        $errors[] = $why;
     } elseif ($pass !== $pass2) {
         $errors[] = 'Heslá sa nezhodujú.';
     }
@@ -114,8 +112,14 @@ if (is_post()) {
             }
             if (!admin_exists()) {
                 $pdo->prepare('INSERT INTO admin_users (username, password_hash, created_at) VALUES (?, ?, ?)')
-                    ->execute([$v['username'], password_hash($pass, PASSWORD_DEFAULT), now_str()]);
+                    ->execute([$v['username'], ps_password_hash($pass), now_str()]);
             }
+            // brand-new site: the admin app gets a secret address straight away
+            if (!admin_slug_ok(setting('admin_path'))) {
+                save_settings(['admin_path' => admin_slug_random()]);
+            }
+            save_settings(['admin_path_ack' => '1']);
+            $adminUrl = admin_full_url();
             $done = true;
         } catch (Throwable $e) {
             $errors[] = 'Chyba pri vytváraní tabuliek: ' . $e->getMessage();
@@ -140,12 +144,14 @@ if (is_post()) {
     <?php if ($done): ?>
       <h1>Hotovo!</h1>
       <p>Databáza je pripravená, menu je naplnené a administrátorský účet <b><?= e($v['username']) ?></b> je vytvorený.</p>
+      <p class="notice"><b>Tajná adresa administrácie – uložte si ju:</b><br><code><?= e($adminUrl) ?></code><br>Nikde na webe nie je odkaz na ňu; na akejkoľvek inej adrese uvidí návštevník len „stránka neexistuje“.</p>
       <ol>
-        <li>Otvorte <a href="/admin/">/admin/</a>, prihláste sa a v <b>Nastaveniach</b> doplňte adresu, telefón a údaje firmy.</li>
-        <li>Na mobile otvorte /admin/ a pridajte si aplikáciu na plochu (Android: „Inštalovať aplikáciu“, iPhone: Zdieľať → „Pridať na plochu“).</li>
+        <li>Otvorte adresu vyššie, prihláste sa a v <b>Nastaveniach</b> doplňte adresu prevádzky, telefón a údaje firmy.</li>
+        <li>V <b>Nastavenia → Zabezpečenie</b> zapnite overenie v dvoch krokoch.</li>
+        <li>Na mobile otvorte tú istú adresu a pridajte si aplikáciu na plochu (Android: „Inštalovať aplikáciu“, iPhone: Zdieľať → „Pridať na plochu“).</li>
         <li>Priečinok <code>install</code> môžete zo servera zmazať.</li>
       </ol>
-      <div class="card-actions"><a class="btn btn-primary" href="/admin/">Do administrácie</a><a class="btn btn-ghost" href="/">Pozrieť web</a></div>
+      <div class="card-actions"><a class="btn btn-primary" href="<?= e($adminUrl) ?>">Do administrácie</a><a class="btn btn-ghost" href="/">Pozrieť web</a></div>
     <?php elseif ($manualConfig !== null): ?>
       <h1>Uložte konfiguráciu ručne</h1>
       <p>Server nedovolil zapísať súbor <code>app/config.php</code>. Vytvorte ho cez FTP s týmto obsahom a potom tento formulár odošlite znova:</p>

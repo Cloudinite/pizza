@@ -1,5 +1,5 @@
 <?php
-require dirname(__DIR__) . '/app/admin_bootstrap.php';
+defined('PS_APP') || exit;
 
 require_admin();
 $error = '';
@@ -27,15 +27,15 @@ if (is_post()) {
         } elseif ($action === 'topping_add') {
             $sort = (int) $pdo->query('SELECT COALESCE(MAX(sort_order), 0) + 10 FROM toppings')->fetchColumn();
             $pdo->prepare('INSERT INTO toppings (name, price_cents, is_available, sort_order) VALUES (?, ?, 1, ?)')->execute([$name, $price, $sort]);
-            redirect('/admin/menu.php?ok=added#toppings');
+            redirect(admin_url('menu') . '?ok=added#toppings');
         } else {
             $pdo->prepare('UPDATE toppings SET name = ?, price_cents = ?, sort_order = ? WHERE id = ?')
                 ->execute([$name, $price, (int) ($_POST['sort_order'] ?? 0), $id]);
-            redirect('/admin/menu.php?ok=saved#toppings');
+            redirect(admin_url('menu') . '?ok=saved#toppings');
         }
     } elseif ($action === 'topping_delete') {
         $pdo->prepare('DELETE FROM toppings WHERE id = ?')->execute([$id]);
-        redirect('/admin/menu.php?ok=deleted#toppings');
+        redirect(admin_url('menu') . '?ok=deleted#toppings');
     } elseif ($action === 'category_save' || $action === 'category_add') {
         $name = post_str('name', 80);
         $icon = in_array($_POST['icon'] ?? '', ['slice', 'drink', 'star'], true) ? $_POST['icon'] : 'slice';
@@ -51,11 +51,11 @@ if (is_post()) {
             $sort = (int) $pdo->query('SELECT COALESCE(MAX(sort_order), 0) + 10 FROM categories')->fetchColumn();
             $pdo->prepare('INSERT INTO categories (slug, name, subtitle, icon, is_special, is_visible, sort_order) VALUES (?, ?, ?, ?, 0, 1, ?)')
                 ->execute([$slug, $name, post_str('subtitle', 120), $icon, $sort]);
-            redirect('/admin/menu.php?ok=added#categories');
+            redirect(admin_url('menu') . '?ok=added#categories');
         } else {
             $pdo->prepare('UPDATE categories SET name = ?, subtitle = ?, icon = ?, is_special = ?, is_visible = ?, sort_order = ? WHERE id = ?')
                 ->execute([$name, post_str('subtitle', 120), $icon, isset($_POST['is_special']) ? 1 : 0, isset($_POST['is_visible']) ? 1 : 0, (int) ($_POST['sort_order'] ?? 0), $id]);
-            redirect('/admin/menu.php?ok=saved#categories');
+            redirect(admin_url('menu') . '?ok=saved#categories');
         }
     } elseif ($action === 'category_delete') {
         $n = $pdo->prepare('SELECT COUNT(*) FROM menu_items WHERE category_id = ?');
@@ -64,7 +64,7 @@ if (is_post()) {
             $error = 'Kategóriu s položkami nemožno zmazať. Najprv presuňte alebo zmažte jej položky.';
         } else {
             $pdo->prepare('DELETE FROM categories WHERE id = ?')->execute([$id]);
-            redirect('/admin/menu.php?ok=deleted#categories');
+            redirect(admin_url('menu') . '?ok=deleted#categories');
         }
     }
 }
@@ -82,7 +82,7 @@ function item_rows(array $items): void
     foreach ($items as $it) {
         $on = (int) $it['is_available'];
         echo '<li class="a-row' . ($on ? '' : ' is-off') . '">'
-            . '<a class="a-row-main" href="/admin/item.php?id=' . $it['id'] . '">'
+            . '<a class="a-row-main" href="' . e(admin_url('polozka')) . '?id=' . $it['id'] . '">'
             . '<b>' . e($it['name']) . ($it['badge'] !== '' ? ' <span class="a-tag">' . e($it['badge']) . '</span>' : '') . '</b>'
             . '<span>' . e(money($it['price_cents'])) . ($it['unit_label'] !== '' ? ' · ' . e($it['unit_label']) : '') . ((int) $it['allow_toppings'] ? ' · s prílohami' : '') . '</span></a>'
             . '<label class="a-switch" title="Dostupné"><input type="checkbox" data-toggle="item" data-id="' . $it['id'] . '"' . ($on ? ' checked' : '') . '>'
@@ -98,7 +98,7 @@ function item_rows(array $items): void
 <section class="a-card a-card-special">
   <div class="a-card-h">
     <h2>⭐ <?= e($c['name']) ?></h2>
-    <a class="a-btn a-btn-sm a-btn-primary" href="/admin/item.php?cat=<?= (int) $c['id'] ?>">+ Pridať</a>
+    <a class="a-btn a-btn-sm a-btn-primary" href="<?= e(admin_url('polozka')) ?>?cat=<?= (int) $c['id'] ?>">+ Pridať</a>
   </div>
   <p class="a-muted">Zobrazuje sa na úvodnej stránke. Vypnutá špecialita sa na webe skryje.</p>
   <?php item_rows($c['items']); ?>
@@ -109,7 +109,7 @@ function item_rows(array $items): void
 <section class="a-card">
   <div class="a-card-h">
     <h2><?= e($c['name']) ?><?= (int) $c['is_visible'] ? '' : ' <span class="a-tag">skrytá</span>' ?></h2>
-    <a class="a-btn a-btn-sm" href="/admin/item.php?cat=<?= (int) $c['id'] ?>">+ Pridať</a>
+    <a class="a-btn a-btn-sm" href="<?= e(admin_url('polozka')) ?>?cat=<?= (int) $c['id'] ?>">+ Pridať</a>
   </div>
   <?php item_rows($c['items']); ?>
 </section>

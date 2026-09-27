@@ -1,7 +1,13 @@
 <?php
-require dirname(__DIR__) . '/app/admin_bootstrap.php';
+defined('PS_APP') || exit;
 
 require_admin();
+if (is_post() && post_str('action', 20) === 'ack_path') {
+    admin_require_csrf();
+    save_settings(['admin_path_ack' => '1']); // from now on the old /admin/ address is a plain 404
+    redirect(admin_url() . '?ok=saved');
+}
+$showMoved = setting('admin_path_ack') !== '1';
 $initial = [
     'view' => 'active',
     'orders' => orders_admin_list('active'),
@@ -16,6 +22,22 @@ $wakeOn = ($_COOKIE['ps_wake'] ?? '') === '1';
 
 admin_start('Objednávky', 'orders');
 ?>
+<?php if ($showMoved): ?>
+<section class="a-card a-moved" aria-labelledby="moved-h">
+  <h2 id="moved-h">🔒 Administrácia má novú tajnú adresu</h2>
+  <p>Stará adresa <code>/admin/</code> je pre roboty aj útočníkov známa, preto je aplikácia teraz schovaná na adrese, ktorú poznáte len vy:</p>
+  <div class="a-url">
+    <code data-copy-src><?= e(admin_full_url()) ?></code>
+    <button class="a-btn a-btn-sm" type="button" data-copy>Kopírovať</button>
+  </div>
+  <p class="a-muted">Uložte si ju do záložiek a znova pridajte aplikáciu na plochu telefónu (ikona na ploche so starou adresou už nebude fungovať). Po potvrdení bude <code>/admin/</code> vracať len „stránka neexistuje“.</p>
+  <form method="post">
+    <?= admin_csrf_field() ?>
+    <input type="hidden" name="action" value="ack_path">
+    <button class="a-btn a-btn-primary a-btn-block" type="submit">Mám ju uloženú – skryť starú adresu</button>
+  </form>
+</section>
+<?php endif; ?>
 <div class="a-ordering<?= $ordering ? '' : ' is-off' ?>" data-ordering-card>
   <div>
     <b>Online objednávky</b>

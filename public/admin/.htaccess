@@ -1,10 +1,10 @@
-# Admin app: never indexed; service worker and manifest must always be revalidated.
-<IfModule mod_headers.c>
-  Header set X-Robots-Tag "noindex, nofollow"
-  <Files "sw.js">
-    Header set Cache-Control "no-cache"
-  </Files>
-  <Files "manifest.webmanifest">
-    Header set Cache-Control "no-cache"
-  </Files>
+# The admin app no longer lives here (it moved to a secret address, see README).
+# Old files that may still sit in this folder on the server are never executed:
+# every request is handed to the router, which answers with a plain 404.
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteRule ^ /route.php [L]
+</IfModule>
+<IfModule !mod_rewrite.c>
+  Require all denied
 </IfModule>

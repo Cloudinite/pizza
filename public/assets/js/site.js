@@ -27,6 +27,29 @@
   function popIn(el) { anim(el, [{ opacity: 0, transform: 'scale(.92)' }, { opacity: 1, transform: 'none' }], { duration: 220, easing: EASE }); }
   function visible(el) { if (!el) return false; var r = el.getBoundingClientRect(); return r.width > 0 && r.bottom > 0 && r.top < innerHeight; }
 
+  /* ripple: a soft circle spreads from the finger on every button (clipped, behind the label) */
+  var RIPPLE = '.btn, .cartbtn, .nav a, .chips a, .social a, .choice, .top, .stepper button, .icon-btn, .line-del, .coupon-x';
+  document.addEventListener('pointerdown', function (e) {
+    if (reduced || e.button > 0) return;
+    var host = e.target.closest && e.target.closest(RIPPLE);
+    if (!host || host.disabled || host.classList.contains('is-disabled') || !host.animate) return;
+    var r = host.getBoundingClientRect();
+    var x = e.clientX - r.left, y = e.clientY - r.top;
+    var size = 2 * Math.hypot(Math.max(x, r.width - x), Math.max(y, r.height - y));
+    if (getComputedStyle(host).position === 'static') host.style.position = 'relative';
+    host.classList.add('rpl-host');
+    var wrap = document.createElement('span');
+    wrap.className = 'rpl';
+    wrap.setAttribute('aria-hidden', 'true');
+    var dot = document.createElement('i');
+    dot.style.width = dot.style.height = size + 'px';
+    dot.style.left = (x - size / 2) + 'px';
+    dot.style.top = (y - size / 2) + 'px';
+    wrap.appendChild(dot);
+    host.appendChild(wrap);
+    dot.animate([{ transform: 'scale(0)', opacity: 0.26 }, { transform: 'scale(1)', opacity: 0 }], { duration: 600, easing: EASE }).onfinish = function () { wrap.remove(); };
+  }, { passive: true });
+
   /* a little pizza slice (or cup) flies from the button into the cart */
   function flyToCart(fromEl, icon) {
     var target = [$('[data-cart-go]'), $('[data-cart-link]')].filter(visible)[0];
@@ -417,6 +440,7 @@
       steps.forEach(function (li, i) {
         li.className = st === 'cancelled' || idx < 0 ? '' : (i < idx || st === 'completed' ? 'is-done' : (i === idx ? 'is-current' : ''));
       });
+      if (steps[idx]) anim(steps[idx], [{ transform: 'scale(.94)', opacity: .6 }, { transform: 'scale(1.03)', opacity: 1, offset: .6 }, { transform: 'none', opacity: 1 }], { duration: 560, easing: EASE });
     }
     function poll() {
       if (status === 'completed' || status === 'cancelled') return;

@@ -1,5 +1,5 @@
 <?php
-require dirname(__DIR__) . '/app/admin_bootstrap.php';
+defined('PS_APP') || exit;
 
 require_admin();
 $pdo = db();
@@ -11,7 +11,7 @@ if ($id) {
     $st->execute([$id]);
     $edit = $st->fetch() ?: null;
     if (!$edit) {
-        redirect('/admin/coupons.php');
+        redirect(admin_url('kupony'));
     }
 }
 
@@ -34,7 +34,7 @@ if (is_post()) {
 
     if ($action === 'delete' && $edit) {
         $pdo->prepare('DELETE FROM coupons WHERE id = ?')->execute([$id]);
-        redirect('/admin/coupons.php?ok=deleted');
+        redirect(admin_url('kupony') . '?ok=deleted');
     }
 
     if ($action === 'save') {
@@ -105,7 +105,7 @@ if (is_post()) {
                 $pdo->prepare('INSERT INTO coupons (code, type, value, min_order_cents, max_uses, valid_from, valid_to, once_per_customer,
                                 is_active, note, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')->execute([...$params, now_str()]);
             }
-            redirect('/admin/coupons.php?ok=' . ($edit ? 'saved' : 'added'));
+            redirect(admin_url('kupony') . '?ok=' . ($edit ? 'saved' : 'added'));
         }
     }
 }
@@ -113,12 +113,12 @@ if (is_post()) {
 $coupons = $pdo->query('SELECT * FROM coupons ORDER BY is_active DESC, id DESC')->fetchAll();
 admin_start('Zľavové kupóny', 'settings');
 ?>
-<a class="a-back" href="/admin/settings.php">← Nastavenia</a>
+<a class="a-back" href="<?= e(admin_url('nastavenia')) ?>">← Nastavenia</a>
 
 <section class="a-card">
   <div class="a-card-h">
     <h2>Zľavové kupóny</h2>
-    <?php if ($edit): ?><a class="a-btn a-btn-sm a-btn-primary" href="/admin/coupons.php#form">+ Nový</a><?php endif; ?>
+    <?php if ($edit): ?><a class="a-btn a-btn-sm a-btn-primary" href="<?= e(admin_url('kupony')) ?>#form">+ Nový</a><?php endif; ?>
   </div>
   <p class="a-muted">Zákazník zadá kód v košíku. Zľava sa počíta z ceny jedla, nie z donášky. Prepínačom kupón dočasne vypnete.</p>
   <?php if (!$coupons): ?>
@@ -131,7 +131,7 @@ admin_start('Zľavové kupóny', 'settings');
         $info = array_filter([coupon_label($c), coupon_conditions($c),
             'použité ' . (int) $c['used_count'] . ($c['max_uses'] !== null ? ' / ' . (int) $c['max_uses'] : '') . '×']); ?>
     <li class="a-row<?= (int) $c['is_active'] ? '' : ' is-off' ?><?= $edit && (int) $edit['id'] === (int) $c['id'] ? ' is-editing' : '' ?>">
-      <a class="a-row-main" href="/admin/coupons.php?id=<?= (int) $c['id'] ?>#form">
+      <a class="a-row-main" href="<?= e(admin_url('kupony')) ?>?id=<?= (int) $c['id'] ?>#form">
         <b><span class="a-code"><?= e($c['code']) ?></span>
           <?php if ($expired): ?><span class="a-tag a-tag-err">vypršal</span><?php elseif ($usedUp): ?><span class="a-tag a-tag-err">vyčerpaný</span><?php endif; ?></b>
         <span><?= e(implode(' · ', $info)) ?><?= $c['note'] !== '' ? ' · ' . e($c['note']) : '' ?></span>
@@ -143,7 +143,7 @@ admin_start('Zľavové kupóny', 'settings');
   <?php endif; ?>
 </section>
 
-<form method="post" class="a-card a-form" id="form" action="/admin/coupons.php<?= $edit ? '?id=' . (int) $edit['id'] : '' ?>">
+<form method="post" class="a-card a-form" id="form" action="<?= e(admin_url('kupony')) ?><?= $edit ? '?id=' . (int) $edit['id'] : '' ?>">
   <?= admin_csrf_field() ?>
   <input type="hidden" name="action" value="save">
   <input type="hidden" name="id" value="<?= $edit ? (int) $edit['id'] : 0 ?>">
@@ -191,7 +191,7 @@ admin_start('Zľavové kupóny', 'settings');
 </form>
 
 <?php if ($edit): ?>
-<form method="post" class="a-danger-zone" action="/admin/coupons.php?id=<?= (int) $edit['id'] ?>" data-confirm="Zmazať kupón <?= e($edit['code']) ?>? Staré objednávky si kód ponechajú.">
+<form method="post" class="a-danger-zone" action="<?= e(admin_url('kupony')) ?>?id=<?= (int) $edit['id'] ?>" data-confirm="Zmazať kupón <?= e($edit['code']) ?>? Staré objednávky si kód ponechajú.">
   <?= admin_csrf_field() ?>
   <input type="hidden" name="id" value="<?= (int) $edit['id'] ?>">
   <input type="hidden" name="action" value="delete">

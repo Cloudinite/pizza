@@ -19,8 +19,13 @@ AddDefaultCharset utf-8
   RewriteCond %{HTTP_HOST} !^(localhost|127\.0\.0\.1)(:\d+)?$
   RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
 
-  # Internal code, config and SQL are never served.
-  RewriteRule ^app(/|$) - [F,L]
+  # Private files answer exactly like a missing page (404) – no hint that they exist.
+  RewriteRule ^(app|dev|vendor|node_modules)(/|$) - [R=404,L,NC]
+  RewriteCond %{REQUEST_URI} !^/\.well-known/
+  RewriteRule (^|/)\. - [R=404,L]
+  RewriteRule \.(sql|md|lock|log|ini|sh|bak|dist|example|sample|swp|old|orig|tmp|env|zip|tar|gz|tgz|7z|rar|yml|yaml|inc|phar|phtml)$ - [R=404,L,NC]
+  RewriteRule (~|\#)$ - [R=404,L]
+  RewriteRule ^(assets|uploads)/(.*\.ph(p\d?|tml|ar))?$ - [R=404,L,NC]
 
   # One canonical URL per page: /menu.php → /menu
   RewriteCond %{THE_REQUEST} \s/(menu|kosik|cookies|ochrana-osobnych-udajov)\.php[\s?] [NC]
@@ -34,13 +39,19 @@ AddDefaultCharset utf-8
   RewriteRule ^cookies/?$ cookies.php [L,QSA]
   RewriteRule ^sitemap\.xml$ sitemap.php [L]
   RewriteRule ^robots\.txt$ robots.php [L]
+
+  # Anything that is not a real file or folder → router: serves the admin app only at its
+  # secret address, a plain 404 for everything else.
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteRule ^ route.php [L]
 </IfModule>
 
 ErrorDocument 403 /404.php
 ErrorDocument 404 /404.php
 
 # Dotfiles, SQL dumps, backups and logs are never served.
-<FilesMatch "(^\.|\.(sql|md|lock|log|ini|sh|bak|dist|example)$)">
+<FilesMatch "(^\.|\.(sql|md|lock|log|ini|sh|bak|dist|example|sample|swp|old|orig|tmp|env|zip|tar|gz|tgz|7z|rar|yml|yaml|inc|phar|phtml)$|~$)">
   Require all denied
 </FilesMatch>
 

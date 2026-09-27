@@ -1,5 +1,5 @@
 <?php
-require dirname(__DIR__) . '/app/admin_bootstrap.php';
+defined('PS_APP') || exit;
 require PS_APPDIR . '/lib/images.php';
 
 require_admin();
@@ -8,7 +8,7 @@ $menu = menu_load(true);
 $id = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
 $item = $id ? ($menu['items'][$id] ?? null) : null;
 if ($id && !$item) {
-    redirect('/admin/menu.php');
+    redirect(admin_url('menu'));
 }
 $catId = (int) ($item['category_id'] ?? $_GET['cat'] ?? array_key_first($menu['categories']));
 $cat = $menu['categories'][$catId] ?? reset($menu['categories']);
@@ -27,7 +27,7 @@ if (is_post()) {
     if (post_str('action', 10) === 'delete' && $item) {
         $pdo->prepare('DELETE FROM menu_items WHERE id = ?')->execute([$id]);
         image_delete($item['image']);
-        redirect('/admin/menu.php?ok=deleted');
+        redirect(admin_url('menu') . '?ok=deleted');
     }
 
     $v['name'] = post_str('name', 100);
@@ -83,13 +83,13 @@ if (is_post()) {
                 ->execute([$v['category_id'], $v['name'], $v['description'], $v['badge'], $v['unit_label'], $price,
                     $image, $v['allow_toppings'], $v['is_available'], $v['sort_order'], $now, $now]);
         }
-        redirect('/admin/menu.php?ok=' . ($item ? 'saved' : 'added'));
+        redirect(admin_url('menu') . '?ok=' . ($item ? 'saved' : 'added'));
     }
 }
 
 admin_start($item ? 'Upraviť položku' : 'Nová položka', 'menu');
 ?>
-<a class="a-back" href="/admin/menu.php">← Späť na menu</a>
+<a class="a-back" href="<?= e(admin_url('menu')) ?>">← Späť na menu</a>
 <?php foreach ($errors as $err): ?><p class="a-err" role="alert"><?= e($err) ?></p><?php endforeach; ?>
 
 <form method="post" enctype="multipart/form-data" class="a-card a-form">
