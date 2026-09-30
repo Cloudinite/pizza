@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>LiftLog</title>
+  <meta name="description" content="Log your workouts: splits, sets, reps and weight. Works offline.">
+  <meta name="theme-color" content="#0e0f12" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f4f4f1" media="(prefers-color-scheme: light)">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="LiftLog">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <div class="title-wrap">
+        <div class="eyebrow" id="eyebrow"></div>
+        <h1 id="title">LiftLog</h1>
+      </div>
+      <div class="top-actions" id="topActions"></div>
+    </div>
+  </header>
+
+  <main id="view" class="view"></main>
+
+  <div id="restTimer" class="rest-timer" hidden>
+    <button class="rest-btn" data-act="rest-add" data-sec="-15" aria-label="15 seconds less">−15</button>
+    <div class="rest-center">
+      <div class="rest-label">Rest</div>
+      <div class="rest-time" id="restTime">1:30</div>
+    </div>
+    <button class="rest-btn" data-act="rest-add" data-sec="15" aria-label="15 seconds more">+15</button>
+    <button class="rest-btn rest-close" data-act="rest-stop" aria-label="Stop timer">✕</button>
+    <div class="rest-bar"><div class="rest-bar-fill" id="restBar"></div></div>
+  </div>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab" data-tab="today">
+      <svg viewBox="0 0 24 24"><path d="M6.5 6.5v11M17.5 6.5v11M3 9v6M21 9v6M6.5 12h11"/></svg>
+      <span>Workout</span>
+    </button>
+    <button class="tab" data-tab="week">
+      <svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+      <span>Week</span>
+    </button>
+    <button class="tab" data-tab="plan">
+      <svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg>
+      <span>Splits</span>
+    </button>
+    <button class="tab" data-tab="history">
+      <svg viewBox="0 0 24 24"><path d="M4 19V11M10 19V5M16 19v-6M22 19H2"/></svg>
+      <span>Progress</span>
+    </button>
+  </nav>
+
+  <div id="sheetRoot" class="sheet-root" hidden>
+    <div class="sheet-backdrop" data-act="sheet-close"></div>
+    <div class="sheet" role="dialog" aria-modal="true">
+      <div class="sheet-grip"></div>
+      <div id="sheetBody"></div>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
