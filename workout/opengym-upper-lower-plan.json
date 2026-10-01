@@ -1,0 +1,309 @@
+{
+  "opengym_plan": 1,
+  "exported": "2026-10-01",
+  "name": "Upper / Lower 4-day",
+  "unit": "kg",
+  "week": {
+    "1": [
+      "upper1"
+    ],
+    "2": [
+      "lower1"
+    ],
+    "4": [
+      "upper2"
+    ],
+    "6": [
+      "lower2"
+    ]
+  },
+  "routines": [
+    {
+      "id": "upper1",
+      "name": "Upper 1",
+      "emoji": "dumbbell",
+      "ex": [
+        {
+          "id": "0289",
+          "sets": 3,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0861",
+          "sets": 3,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double",
+          "note": "Lat dominant: elbows tucked, pull toward your hips"
+        },
+        {
+          "id": "0314",
+          "sets": 3,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0818",
+          "sets": 3,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0178",
+          "sets": 2,
+          "reps": 20,
+          "repsMin": 15,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0241",
+          "sets": 2,
+          "reps": 20,
+          "repsMin": 12,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0165",
+          "sets": 2,
+          "reps": 20,
+          "repsMin": 12,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        }
+      ]
+    },
+    {
+      "id": "lower1",
+      "name": "Lower 1",
+      "emoji": "legs",
+      "ex": [
+        {
+          "id": "1409",
+          "sets": 1,
+          "reps": 15,
+          "repsMin": 10,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0085",
+          "sets": 2,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0739",
+          "sets": 2,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double",
+          "note": "Hip dominant: feet high and wide on the platform"
+        },
+        {
+          "id": "0599",
+          "sets": 2,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0594",
+          "sets": 2,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        }
+      ]
+    },
+    {
+      "id": "upper2",
+      "name": "Upper 2",
+      "emoji": "arm",
+      "ex": [
+        {
+          "id": "0392",
+          "sets": 1,
+          "reps": 15,
+          "repsMin": 10,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0405",
+          "sets": 3,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double",
+          "note": "Anterior delt focus: elbows slightly forward"
+        },
+        {
+          "id": "0178",
+          "sets": 3,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0194",
+          "sets": 3,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0868",
+          "sets": 3,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0203",
+          "sets": 3,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double",
+          "note": "Prone: chest supported on an incline bench, elbows wide"
+        },
+        {
+          "id": "0383",
+          "sets": 1,
+          "reps": 15,
+          "repsMin": 12,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double",
+          "note": "Prone: chest supported on an incline bench"
+        },
+        {
+          "id": "0314",
+          "sets": 2,
+          "reps": 15,
+          "repsMin": 10,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0818",
+          "sets": 2,
+          "reps": 15,
+          "repsMin": 10,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        }
+      ]
+    },
+    {
+      "id": "lower2",
+      "name": "Lower 2",
+      "emoji": "legs",
+      "ex": [
+        {
+          "id": "0739",
+          "sets": 2,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double",
+          "note": "Quad dominant: feet low and narrow on the platform"
+        },
+        {
+          "id": "0585",
+          "sets": 2,
+          "reps": 15,
+          "repsMin": 10,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "1489",
+          "sets": 2,
+          "reps": 1,
+          "mode": "reps",
+          "prog": "off",
+          "note": "1+ reps: as many good reps as you can (AMRAP)"
+        },
+        {
+          "id": "0334",
+          "sets": 3,
+          "reps": 20,
+          "repsMin": 15,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0227",
+          "sets": 3,
+          "reps": 15,
+          "repsMin": 12,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        },
+        {
+          "id": "0605",
+          "sets": 2,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double",
+          "note": "Straight legs (knees locked)"
+        },
+        {
+          "id": "0175",
+          "sets": 2,
+          "reps": 12,
+          "repsMin": 8,
+          "weight": 0,
+          "mode": "reps",
+          "prog": "double"
+        }
+      ]
+    }
+  ],
+  "customEx": []
+}
